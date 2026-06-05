@@ -72,7 +72,3 @@ See **`/business`** for pricing tiers and **`/teacher`** for the School Chapter 
 - Replace demo scanner with **Teachable Machine** or **Hugging Face** models
 - Live ocean data APIs and mobile app
 - School programs and global competitions
-
-## AI Scanner Note
-
-The current scanner uses client-side color heuristics for demo purposes. For production, integrate a trained coral health model.
