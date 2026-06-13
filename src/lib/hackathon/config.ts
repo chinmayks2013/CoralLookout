@@ -26,8 +26,8 @@ export interface HackathonConfig {
 const DEFAULT_DEMO_STEPS: HackathonDemoStep[] = [
   {
     step: 1,
-    title: "AI reef scan",
-    hook: "Upload a photo → instant health score, confidence, and damage zones.",
+    title: "AI reef pipeline",
+    hook: "Upload a photo → 6-step coral-saving pipeline (classify, localize, conserve) traced in W&B.",
     href: "/scanner",
     duration: "45s",
   },
@@ -97,10 +97,11 @@ export function getHackathonConfig(): HackathonConfig {
       "Next.js 16",
       "React 19",
       "Supabase",
+      "Weights & Biases",
+      "Sharp",
       "Tailwind CSS 4",
       "Leaflet",
       "Framer Motion",
-      "Stripe",
     ],
     tracks: track.split(/[·|,]/).map((t) => t.trim()).filter(Boolean),
   };

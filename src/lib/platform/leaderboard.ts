@@ -23,7 +23,7 @@ export function getLeaderboardWithUser(
     {
       rank: 1,
       name: state.profile.name,
-      school: state.profile.school,
+      school: state.profile.school ?? "",
       points: state.points,
       streak: state.streak,
       badgeCount: badges,

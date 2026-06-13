@@ -50,18 +50,18 @@ export function CommunityView() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim() || !school.trim() || !email.trim()) {
-      setError("Please fill in name, school, and email.");
+    if (!name.trim()) {
+      setError("Please enter a display name.");
       return;
     }
-    if (!email.includes("@")) {
+    if (email.trim() && !email.includes("@")) {
       setError("Please enter a valid email.");
       return;
     }
     register({
       name: name.trim(),
-      school: school.trim(),
-      email: email.trim(),
+      school: school.trim() || undefined,
+      email: email.trim() || undefined,
       region: region.trim() || undefined,
       bio: bio.trim() || undefined,
       tagline: tagline.trim() || undefined,
@@ -146,44 +146,46 @@ export function CommunityView() {
             {state.profile ? "Update your profile" : "Create your community profile"}
           </h2>
           <p className="text-slate-400 mb-6 text-sm leading-relaxed">
-            This powers your public Coral Enthusiast page — bio, tagline, and school show on{" "}
+            Only your display name is required. School, tagline, and bio are optional —
+            share only what you&apos;re comfortable making public on{" "}
             <Link href="/gallery" className="text-cyan-300 underline">
               gallery
             </Link>{" "}
-            posts. Publish scans to earn corals when others view, comment, and donate.
+            posts.
           </p>
           <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
             <input
               type="text"
-              placeholder="Display name"
+              placeholder="Display name *"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
+              required
+              className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 sm:col-span-2"
             />
             <input
               type="text"
-              placeholder="School / Organization"
+              placeholder="School / organization (optional)"
               value={school}
               onChange={(e) => setSchool(e.target.value)}
               className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
             />
             <input
               type="email"
-              placeholder="Email (private — not shown publicly)"
+              placeholder="Email (optional, private)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 sm:col-span-2"
+              className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
             />
             <input
               type="text"
-              placeholder="Tagline (e.g. Coral enthusiast · student diver · Cairns)"
+              placeholder="Tagline (optional)"
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               maxLength={120}
               className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 sm:col-span-2"
             />
             <textarea
-              placeholder="Bio — your reef story, focus species, dive experience…"
+              placeholder="Bio (optional)"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               maxLength={500}
@@ -314,16 +316,18 @@ export function CommunityView() {
         </div>
       </section>
 
-      {state.profile && (
+      {state.profile && (state.profile.school || state.profile.bio) && (
         <section className="mt-10">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <School className="h-5 w-5 text-cyan-400" />
-            {state.profile.school}
-          </h2>
+          {state.profile.school && (
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <School className="h-5 w-5 text-cyan-400" />
+              {state.profile.school}
+            </h2>
+          )}
           <article className="glass rounded-xl p-6 max-w-xl">
-            <p className="text-sm text-cyan-400">
-              {state.profile.region ?? "Region not set"}
-            </p>
+            {state.profile.region && (
+              <p className="text-sm text-cyan-400">{state.profile.region}</p>
+            )}
             {state.profile.bio && (
               <p className="text-sm text-slate-300 mt-3 leading-relaxed">{state.profile.bio}</p>
             )}

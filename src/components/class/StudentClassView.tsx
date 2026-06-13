@@ -16,6 +16,7 @@ import {
   Coins,
 } from "lucide-react";
 import { usePlatform } from "@/context/PlatformContext";
+import { useAuth } from "@/context/AuthContext";
 import { joinSchoolChapter, fetchStudentClass } from "@/lib/school/cloud";
 import type { ChapterLeaderboardEntry, SchoolRosterMember } from "@/lib/school/types";
 import { safeNumber } from "@/lib/platform/numbers";
@@ -23,6 +24,7 @@ import { safeNumber } from "@/lib/platform/numbers";
 export function StudentClassView() {
   const router = useRouter();
   const { state, hydrated, dispatch } = usePlatform();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,16 +64,16 @@ export function StudentClassView() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!state.profile || !state.userId) {
+    if (!state.userId || !state.profile?.name?.trim()) {
       setLoading(false);
       return;
     }
     void load().finally(() => setLoading(false));
-  }, [hydrated, state.profile, state.userId, load]);
+  }, [hydrated, state.profile?.name, state.userId, load]);
 
   async function onJoin(e: FormEvent) {
     e.preventDefault();
-    if (!state.profile || !state.userId || !joinCode.trim()) return;
+    if (!state.profile?.name?.trim() || !state.userId || !joinCode.trim()) return;
     setJoining(true);
     setError(null);
     try {
@@ -79,7 +81,7 @@ export function StudentClassView() {
         joinCode: joinCode.trim(),
         userId: state.userId,
         displayName: state.profile.name,
-        email: state.profile.email,
+        email: state.profile.email ?? user?.email ?? "",
       });
       dispatch({
         type: "SET_SCHOOL_CHAPTER",
@@ -104,20 +106,25 @@ export function StudentClassView() {
     );
   }
 
-  if (!state.profile || !state.userId) {
+  if (!user || !state.userId || !state.profile?.name?.trim()) {
     return (
       <section className="mx-auto max-w-md px-4 py-16 text-center">
         <GraduationCap className="h-12 w-12 text-teal-400 mx-auto mb-4" />
         <h1 className="text-xl font-bold mb-2">Join your class</h1>
         <p className="text-slate-400 text-sm mb-6">
-          Log in with a Coral Enthusiast profile first, then enter your teacher&apos;s
-          class code.
+          Sign in and set a display name, then enter your teacher&apos;s class code.
         </p>
         <Link
-          href="/community"
+          href="/login?next=/class"
           className="inline-flex rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-slate-900"
         >
-          Join community
+          Sign in
+        </Link>
+        <Link
+          href="/community"
+          className="block mt-3 text-sm text-cyan-300 underline"
+        >
+          Set display name
         </Link>
       </section>
     );

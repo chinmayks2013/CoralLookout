@@ -3,8 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Providers } from "@/components/providers/Providers";
-import { HackathonBanner } from "@/components/hackathon/HackathonBanner";
-import { isHackathonMode } from "@/lib/hackathon/config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Coral Lookout — Student-Driven Reef Conservation",
+  title: "Coral Lookout — AI-Powered Reef Conservation",
   description:
-    "Using AI and student innovation to help protect coral reefs worldwide. Monitor health, detect bleaching, learn, and compete globally.",
+    "Monitor coral reef health, detect bleaching, and build the world's largest student-driven conservation network — powered by AI and marine science.",
 };
 
 export const viewport: Viewport = {
@@ -34,26 +32,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const hackathon = isHackathonMode();
-
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-clip ${hackathon ? "hackathon-mode" : ""}`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-clip`}
     >
-      <body
-        className={`min-h-full flex flex-col text-slate-100 overflow-x-clip ${hackathon ? "hackathon-mode bg-transparent" : "bg-slate-950"}`}
-      >
+      <body className="min-h-full flex flex-col text-slate-100 overflow-x-clip bg-slate-950">
         <Providers>
           <header className="fixed top-0 left-0 right-0 z-50">
             <Navbar />
-            {hackathon && <HackathonBanner />}
           </header>
-          <main
-            className={`flex-1 min-w-0 pb-safe ${hackathon ? "pt-[5.75rem]" : "pt-14"}`}
-          >
-            {children}
-          </main>
+          <main className="flex-1 min-w-0 pb-safe pt-14">{children}</main>
           <Footer />
         </Providers>
       </body>

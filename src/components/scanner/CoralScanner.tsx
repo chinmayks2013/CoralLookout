@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Upload,
   Loader2,
@@ -11,16 +11,20 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { compressImageForGallery } from "@/lib/gallery/image";
-import {
-  analyzeReefImage,
-  getHealthColor,
-} from "@/lib/scanner/analyze";
+import { getHealthColor } from "@/lib/scanner/analyze";
+import { runPipelineAnalysis, PipelineAnalysisError } from "@/lib/pipeline/client";
+import type { ConservationPlan, PipelineStepTrace, ReefValidationResult } from "@/lib/pipeline/types";
 import type { ScanResult } from "@/lib/types";
 import { usePlatform } from "@/context/PlatformContext";
 import Link from "next/link";
+import { PipelineProgress } from "@/components/scanner/PipelineProgress";
+import { ConservationPlanCard } from "@/components/scanner/ConservationPlanCard";
+import { LocationPinPicker } from "@/components/scanner/LocationPinPicker";
+import { useAuth } from "@/context/AuthContext";
 
 export function CoralScanner() {
   const { recordScan, state } = usePlatform();
+  const { user } = useAuth();
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,10 +37,24 @@ export function CoralScanner() {
   const [shareToGallery, setShareToGallery] = useState(false);
   const [imageRightsConfirmed, setImageRightsConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStepTrace[]>([]);
+  const [conservationPlan, setConservationPlan] = useState<ConservationPlan | null>(null);
+  const [modelVersion, setModelVersion] = useState<string | null>(null);
+  const [wandbRunUrl, setWandbRunUrl] = useState<string | undefined>();
+  const [rejection, setRejection] = useState<ReefValidationResult | null>(null);
+
+  useEffect(() => {
+    void fetch("/api/pipeline/analyze").catch(() => {});
+  }, []);
 
   const resetScan = useCallback(() => {
     setPreview(null);
     setResult(null);
+    setPipelineSteps([]);
+    setConservationPlan(null);
+    setModelVersion(null);
+    setWandbRunUrl(undefined);
+    setRejection(null);
     setLocationName("");
     setLat(null);
     setLng(null);
@@ -53,6 +71,11 @@ export function CoralScanner() {
     }
     setError(null);
     setResult(null);
+    setPipelineSteps([]);
+    setConservationPlan(null);
+    setModelVersion(null);
+    setWandbRunUrl(undefined);
+    setRejection(null);
     setSaved(false);
     setShareToGallery(false);
     setImageRightsConfirmed(false);
@@ -63,14 +86,25 @@ export function CoralScanner() {
     setPreview(url);
     setLoading(true);
     try {
-      const analysis = await analyzeReefImage(url);
-      setResult(analysis);
-    } catch {
-      setError("Analysis failed. Please try another image.");
+      const pipeline = await runPipelineAnalysis(file, state.userId);
+      setResult(pipeline.scan);
+      setPipelineSteps(pipeline.steps);
+      setConservationPlan(pipeline.plan);
+      setModelVersion(pipeline.modelVersion);
+      setWandbRunUrl(pipeline.wandbRunUrl);
+    } catch (err) {
+      if (err instanceof PipelineAnalysisError && err.validation) {
+        setRejection(err.validation);
+        setError(err.message);
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Pipeline analysis failed."
+        );
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [state.userId]);
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -100,11 +134,15 @@ export function CoralScanner() {
       return;
     }
     if (lat === null || lng === null) {
-      setError("Add a map location using “Use my location” or enter latitude/longitude.");
+      setError("Drop a pin on the map, use “Use my location”, or enter coordinates.");
       return;
     }
-    if (shareToGallery && !state.profile) {
-      setError("Register on Community before sharing to the gallery.");
+    if (shareToGallery && !user) {
+      setError("Sign in to share scans to the gallery.");
+      return;
+    }
+    if (shareToGallery && !state.profile?.name?.trim()) {
+      setError("Add a display name on Community before sharing to the gallery.");
       return;
     }
     if (shareToGallery && !imageRightsConfirmed) {
@@ -120,7 +158,8 @@ export function CoralScanner() {
       if (shareToGallery) {
         imageDataUrl = await compressImageForGallery(preview);
       }
-      const { galleryPublished, galleryError } = await recordScan(
+      const { galleryPublished, galleryError, cloudSaved, cloudError } =
+        await recordScan(
         result,
         {
           locationName: locationName.trim(),
@@ -133,7 +172,12 @@ export function CoralScanner() {
           imageRightsConfirmed: shareToGallery && imageRightsConfirmed,
         }
       );
-      if (shareToGallery && !galleryPublished) {
+      if (!cloudSaved && user) {
+        setError(
+          cloudError ??
+            "Scan saved on this device, but could not sync to your account. Run supabase/migrations/007_user_scans.sql if the table is missing."
+        );
+      } else if (shareToGallery && !galleryPublished) {
         setError(
           galleryError ??
             "Scan saved to your map, but gallery is offline. Set up Supabase (see Gallery page)."
@@ -154,6 +198,7 @@ export function CoralScanner() {
     shareToGallery,
     imageRightsConfirmed,
     state.profile,
+    user,
     recordScan,
   ]);
 
@@ -223,22 +268,57 @@ export function CoralScanner() {
           )}
         </div>
         {error && (
-          <p className="flex items-center gap-2 text-red-400 text-sm">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
-          </p>
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-red-400 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </p>
+            {rejection && (
+              <article className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-sm space-y-2">
+                <p className="font-semibold text-red-200">
+                  AI reef check failed
+                </p>
+                <p className="text-slate-300">
+                  Detected: <span className="text-red-100">{rejection.detectedSubject}</span>
+                </p>
+                <p className="text-slate-400 text-xs">
+                  {rejection.reason} · {Math.round(rejection.confidence * 100)}% confidence ·{" "}
+                  {rejection.provider}/{rejection.model}
+                </p>
+                <p className="text-slate-500 text-xs">
+                  Upload an underwater coral reef photo to continue.
+                </p>
+              </article>
+            )}
+          </div>
         )}
         <p className="text-xs text-slate-500">
-          Scans are saved with a real map location — only your observations appear on the Global Map.
+          Runs the AI coral-saving pipeline: preprocess → AI reef detection → classify → localize → conserve.
         </p>
       </div>
 
       <div className="space-y-4">
         {loading && !result && (
-          <article className="glass rounded-2xl p-8 text-center">
-            <Loader2 className="h-8 w-8 text-cyan-400 animate-spin mx-auto mb-4" />
-            <p className="text-cyan-300 font-medium">AI analyzing reef health...</p>
-          </article>
+          <>
+            <PipelineProgress steps={[]} active modelVersion="running…" />
+            <article className="glass rounded-2xl p-8 text-center">
+              <Loader2 className="h-8 w-8 text-violet-400 animate-spin mx-auto mb-4" />
+              <p className="text-violet-200 font-medium">
+                Orchestrating coral-saving pipeline…
+              </p>
+              <p className="text-slate-500 text-sm mt-2">
+                Preprocess → AI reef check → classify → localize → conserve
+              </p>
+            </article>
+          </>
+        )}
+
+        {(pipelineSteps.length > 0 || loading) && result && (
+          <PipelineProgress
+            steps={pipelineSteps}
+            modelVersion={modelVersion ?? undefined}
+            wandbRunUrl={wandbRunUrl}
+          />
         )}
 
         {result && (
@@ -257,6 +337,10 @@ export function CoralScanner() {
 
             <p className="text-slate-300 text-sm leading-relaxed">{result.explanation}</p>
 
+            {conservationPlan && (
+              <ConservationPlanCard plan={conservationPlan} />
+            )}
+
             {!saved ? (
               <section className="border-t border-cyan-500/20 pt-4 space-y-3">
                 <h3 className="text-sm font-semibold text-cyan-300 flex items-center gap-2">
@@ -270,28 +354,42 @@ export function CoralScanner() {
                   onChange={(e) => setLocationName(e.target.value)}
                   className="w-full rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-2 text-sm"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Latitude"
-                    value={lat ?? ""}
-                    onChange={(e) =>
-                      setLat(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Longitude"
-                    value={lng ?? ""}
-                    onChange={(e) =>
-                      setLng(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
-                  />
-                </div>
+                <LocationPinPicker
+                  lat={lat}
+                  lng={lng}
+                  onPick={(pickLat, pickLng) => {
+                    setLat(pickLat);
+                    setLng(pickLng);
+                    setError(null);
+                  }}
+                />
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-slate-400 hover:text-slate-300">
+                    Or enter coordinates manually
+                  </summary>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Latitude"
+                      value={lat ?? ""}
+                      onChange={(e) =>
+                        setLat(e.target.value ? Number(e.target.value) : null)
+                      }
+                      className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Longitude"
+                      value={lng ?? ""}
+                      onChange={(e) =>
+                        setLng(e.target.value ? Number(e.target.value) : null)
+                      }
+                      className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </details>
                 <button
                   type="button"
                   onClick={useMyLocation}
@@ -344,6 +442,14 @@ export function CoralScanner() {
                     </span>
                   </label>
                 )}
+                {!user && (
+                  <p className="text-xs text-amber-200/90 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                    <Link href="/login?next=/scanner" className="underline text-amber-100">
+                      Sign in
+                    </Link>{" "}
+                    to save scans to your account and sync across devices.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={saveToMap}
@@ -364,7 +470,9 @@ export function CoralScanner() {
               <section className="border-t border-teal-500/30 pt-4 space-y-2">
                 <p className="flex items-center gap-2 text-teal-400 text-sm font-medium">
                   <CheckCircle className="h-4 w-4" />
-                  Saved to your map and research dashboard
+                  {user
+                    ? "Saved to your account, map, and research dashboard"
+                    : "Saved on this device — sign in to sync to your account"}
                 </p>
                 <p className="text-sm text-slate-400">
                   {locationName} · {lat?.toFixed(4)}, {lng?.toFixed(4)}
@@ -395,8 +503,11 @@ export function CoralScanner() {
         )}
 
         {!loading && !result && (
-          <article className="glass rounded-2xl p-8 text-center text-slate-400">
-            <p>Upload a reef image to analyze and pin on your map.</p>
+          <article className="glass rounded-2xl p-8 text-center text-slate-400 space-y-2">
+            <p>Upload a reef image to run the AI conservation pipeline.</p>
+            <p className="text-xs text-slate-500">
+              Non-reef images are rejected by AI vision before health analysis runs.
+            </p>
           </article>
         )}
       </div>

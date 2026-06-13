@@ -3,25 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Menu, Waves, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, User, Waves, X } from "lucide-react";
 import { usePlatform } from "@/context/PlatformContext";
-import { isHackathonMode } from "@/lib/hackathon/config";
+import { useAuth } from "@/context/AuthContext";
 
 const primaryLinks = [
   { href: "/scanner", label: "Scanner" },
+  { href: "/academy", label: "Academy" },
   { href: "/gallery", label: "Gallery" },
   { href: "/forum", label: "Forum" },
   { href: "/map", label: "Map" },
 ];
 
 const moreLinks = [
-  { href: "/academy", label: "Academy" },
   { href: "/challenges", label: "Challenges" },
   { href: "/research", label: "Research" },
   { href: "/compete", label: "Compete" },
   { href: "/community", label: "Community" },
   { href: "/teacher", label: "Teachers" },
   { href: "/business", label: "Partners" },
+  { href: "/founder", label: "Founder" },
 ];
 
 function NavLink({
@@ -51,17 +52,16 @@ function NavLink({
 export function Navbar() {
   const pathname = usePathname();
   const { state, hydrated } = usePlatform();
+  const { user, loading: authLoading, signOut, configured: authConfigured } =
+    useAuth();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
-  const hasProfile = hydrated && Boolean(state.profile);
+  const hasProfile = hydrated && Boolean(state.profile?.name?.trim());
+  const signedIn = authConfigured && Boolean(user);
   const inClass =
     state.schoolChapterRole === "student" && Boolean(state.schoolChapterId);
-  const hackathon = isHackathonMode();
-  const navPrimary = hackathon
-    ? [{ href: "/pitch", label: "Pitch" }, ...primaryLinks]
-    : primaryLinks;
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -110,7 +110,7 @@ export function Navbar() {
         </Link>
 
         <div className="hidden lg:flex min-w-0 flex-1 items-center justify-end gap-0.5 xl:justify-center xl:gap-1">
-          {navPrimary.map((link) => (
+          {primaryLinks.map((link) => (
             <NavLink
               key={link.href}
               href={link.href}
@@ -166,15 +166,48 @@ export function Navbar() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {!authLoading && authConfigured && (
+            signedIn ? (
+              <div className="hidden sm:flex items-center gap-2">
+                <Link
+                  href="/community"
+                  className="inline-flex items-center gap-1 rounded-full border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/10 max-w-[8rem] truncate"
+                  title={state.profile?.name ?? user?.email ?? "Account"}
+                >
+                  <User className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    {state.profile?.name ?? user?.email?.split("@")[0]}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white hover:bg-white/5"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                href={`/login?next=${encodeURIComponent(pathname)}`}
+                className="hidden sm:inline-flex rounded-full border border-cyan-500/40 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/10"
+              >
+                Sign in
+              </Link>
+            )
+          )}
+          <Link
+            href="/academy"
+            className="hidden md:inline-flex rounded-full border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
+          >
+            Academy
+          </Link>
           <Link
             href="/scanner"
-            className={`hidden sm:inline-flex rounded-full px-3 py-1.5 text-xs font-semibold sm:px-3.5 ${
-              hackathon
-                ? "bg-gradient-to-r from-violet-500 to-cyan-500 text-slate-950 hover:opacity-90"
-                : "bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-900 hover:opacity-90"
-            }`}
+            className="hidden sm:inline-flex rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:opacity-90 sm:px-3.5"
           >
-            {hackathon ? "Demo" : "Scan"}
+            Scan
           </Link>
 
           <button
@@ -192,7 +225,7 @@ export function Navbar() {
       {open && (
         <div className="lg:hidden border-t border-cyan-500/15 px-3 py-3 max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain">
           <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
-            {navPrimary.map((link) => (
+            {primaryLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -228,12 +261,28 @@ export function Navbar() {
             ))}
           </div>
           <Link
+            href="/academy"
+            onClick={() => setOpen(false)}
+            className="mt-3 block rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2.5 text-center text-sm font-semibold text-slate-900"
+          >
+            Reef Academy
+          </Link>
+          <Link
             href="/scanner"
             onClick={() => setOpen(false)}
-            className="mt-3 block rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2.5 text-center text-sm font-semibold text-slate-950"
+            className="mt-2 block rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 px-4 py-2.5 text-center text-sm font-semibold text-slate-900"
           >
-            {hackathon ? "Start demo" : "Scan reef"}
+            Scan reef
           </Link>
+          {authConfigured && !signedIn && (
+            <Link
+              href={`/login?next=${encodeURIComponent(pathname)}`}
+              onClick={() => setOpen(false)}
+              className="mt-2 block rounded-full border border-cyan-500/40 px-4 py-2.5 text-center text-sm font-semibold text-cyan-300"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       )}
     </header>

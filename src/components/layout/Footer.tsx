@@ -95,6 +95,11 @@ export function Footer() {
                   NGO partnerships
                 </Link>
               </li>
+              <li>
+                <Link href="/founder" className="hover:text-white">
+                  Founder
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

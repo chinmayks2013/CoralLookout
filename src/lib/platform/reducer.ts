@@ -80,6 +80,22 @@ export function platformReducer(
       return { ...DEFAULT_STATE };
     case "ENSURE_USER_ID":
       return ensureUserId(state);
+    case "LINK_AUTH":
+      return {
+        ...state,
+        userId: action.userId,
+        profile: state.profile ?? action.profile,
+      };
+    case "SYNC_SCANS": {
+      const byId = new Map(state.scans.map((s) => [s.id, s]));
+      for (const scan of action.scans) {
+        byId.set(scan.id, scan);
+      }
+      const scans = [...byId.values()].sort((a, b) =>
+        a.timestamp.localeCompare(b.timestamp)
+      );
+      return { ...state, scans };
+    }
     case "REGISTER": {
       const profile = {
         ...action.profile,

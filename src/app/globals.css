@@ -166,3 +166,109 @@ html.hackathon-mode,
     transform: scale(0.85);
   }
 }
+
+/* Certificate overlay text — scales with certificate width (cqi) */
+.certificate-recipient-name {
+  font-size: clamp(0.95rem, 3.2cqi, 1.35rem);
+  line-height: 1.05;
+}
+
+.certificate-issue-date {
+  font-size: clamp(0.55rem, 1.45cqi, 0.72rem);
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.25in;
+  }
+
+  body.printing-certificate {
+    background: white !important;
+  }
+
+  body.printing-certificate header,
+  body.printing-certificate footer {
+    display: none !important;
+  }
+
+  /* Hide page content but keep the certificate modal in the DOM */
+  body.printing-certificate main > section > *:not(.certificate-modal) {
+    display: none !important;
+  }
+
+  body.printing-certificate main > section {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  body.printing-certificate .certificate-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  body.printing-certificate .certificate-modal > div:first-child {
+    display: none !important;
+  }
+
+  body.printing-certificate .certificate-modal-chrome {
+    display: none !important;
+  }
+
+  body.printing-certificate .certificate-modal .overflow-y-auto {
+    overflow: visible !important;
+    flex: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  body.printing-certificate #certificate-print-root {
+    display: block !important;
+    position: relative !important;
+    width: 10in !important;
+    height: 7.7in !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-certificate #certificate-print-root .certificate-bg {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-certificate #certificate-print-root p,
+  body.printing-certificate #certificate-print-root input {
+    display: block !important;
+    visibility: visible !important;
+    color: #1a365d !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Scale overlay text with full-page certificate — no small screen cap */
+  body.printing-certificate .certificate-recipient-name {
+    font-size: clamp(1.25rem, 3.75cqi, 2.85rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  body.printing-certificate .certificate-issue-date {
+    font-size: clamp(0.7rem, 1.55cqi, 1.05rem) !important;
+  }
+}

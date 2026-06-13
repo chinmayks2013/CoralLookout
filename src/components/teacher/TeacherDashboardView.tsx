@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { usePlatform } from "@/context/PlatformContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   createTeacherChapter,
   fetchChapterLeaderboard,
@@ -48,6 +49,8 @@ const SUPPORT_EMAIL =
 export function TeacherDashboardView() {
   const searchParams = useSearchParams();
   const { state, hydrated, dispatch } = usePlatform();
+  const { user } = useAuth();
+  const teacherEmail = state.profile?.email ?? user?.email ?? "";
   const [chapter, setChapter] = useState<SchoolChapter | null>(null);
   const [roster, setRoster] = useState<SchoolRosterMember[]>([]);
   const [leaderboard, setLeaderboard] = useState<ChapterLeaderboardEntry[]>([]);
@@ -138,8 +141,8 @@ export function TeacherDashboardView() {
       const { chapter: ch, demoMode: demo } = await createTeacherChapter({
         teacherUserId: state.userId,
         teacherName: state.profile.name,
-        teacherEmail: state.profile.email,
-        schoolName: schoolName.trim() || state.profile.school,
+        teacherEmail,
+        schoolName: schoolName.trim() || state.profile.school || "My school",
       });
       setChapter(ch);
       setDemoMode(demo);
@@ -162,7 +165,7 @@ export function TeacherDashboardView() {
       const url = await startSchoolCheckout({
         chapterId: chapter.id,
         teacherUserId: state.userId,
-        teacherEmail: state.profile.email,
+        teacherEmail,
       });
       window.location.href = url;
     } catch (err) {

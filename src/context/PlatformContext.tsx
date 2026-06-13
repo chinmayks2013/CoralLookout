@@ -20,6 +20,7 @@ import {
 } from "@/lib/platform/types";
 import type { ScanResult } from "@/lib/types";
 import { publishPostToCloud, upsertCreatorProfileToCloud } from "@/lib/gallery/cloud";
+import { saveScanToCloud } from "@/lib/scans/cloud";
 function isGalleryConfiguredClient(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim());
 }
@@ -36,7 +37,12 @@ interface PlatformContextValue {
       imageDataUrl?: string;
       imageRightsConfirmed?: boolean;
     }
-  ) => Promise<{ galleryPublished: boolean; galleryError?: string }>;
+  ) => Promise<{
+    galleryPublished: boolean;
+    cloudSaved: boolean;
+    galleryError?: string;
+    cloudError?: string;
+  }>;
   completeLesson: (lessonId: string) => void;
   markAwareness: () => void;
   markCleanup: () => void;
@@ -95,14 +101,30 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         location,
       });
 
+      let cloudSaved = false;
+      let cloudError: string | undefined;
+      try {
+        const cloud = await saveScanToCloud({
+          scanId,
+          locationName: location.locationName,
+          lat: location.lat,
+          lng: location.lng,
+          analysis: result,
+        });
+        cloudSaved = cloud.saved;
+        cloudError = cloud.error;
+      } catch {
+        cloudError = "Could not save scan to your account.";
+      }
+
       if (
         !options?.shareToGallery ||
         !options.imageDataUrl ||
         !options.imageRightsConfirmed ||
-        !state.profile ||
+        !state.profile?.name?.trim() ||
         !state.userId
       ) {
-        return { galleryPublished: false };
+        return { galleryPublished: false, cloudSaved, cloudError };
       }
 
       try {
@@ -120,10 +142,12 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
           imageRightsConfirmed: true,
         });
         dispatch({ type: "ADD_CORALS", amount: 15 });
-        return { galleryPublished: true };
+        return { galleryPublished: true, cloudSaved, cloudError };
       } catch (e) {
         return {
           galleryPublished: false,
+          cloudSaved,
+          cloudError,
           galleryError:
             e instanceof Error ? e.message : "Could not publish to gallery",
         };

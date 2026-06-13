@@ -146,7 +146,7 @@ export function BusinessModelView() {
       </article>
 
       <div className="mb-16">
-        <h2 className="text-xl font-bold mb-6">Questions judges ask</h2>
+        <h2 className="text-xl font-bold mb-6">Frequently asked questions</h2>
         <ul className="space-y-4">
           {BUSINESS_FAQS.map((faq) => (
             <li

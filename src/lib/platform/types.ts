@@ -2,8 +2,8 @@ import type { ReefHealth, ScanResult } from "@/lib/types";
 
 export interface UserProfile {
   name: string;
-  school: string;
-  email: string;
+  school?: string;
+  email?: string;
   region?: string;
   bio?: string;
   tagline?: string;
@@ -70,6 +70,8 @@ export const DEFAULT_STATE: PlatformState = {
 export type PlatformAction =
   | { type: "HYDRATE"; state: PlatformState }
   | { type: "REGISTER"; profile: UserProfile; userId?: string }
+  | { type: "LINK_AUTH"; userId: string; profile: UserProfile }
+  | { type: "SYNC_SCANS"; scans: StoredScan[] }
   | {
       type: "RECORD_SCAN";
       scanId: string;
