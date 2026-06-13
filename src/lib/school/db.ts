@@ -3,6 +3,16 @@ import { fetchGalleryPostsFromDb } from "@/lib/gallery/db";
 import type { GalleryPost } from "@/lib/gallery/types";
 import { initialSubscriptionStatusForNewChapter } from "./config";
 import { generateJoinCode } from "./join-code";
+import {
+  addHealth,
+  buildInsightNarratives,
+  emptyHealthBreakdown,
+  lessonTitles,
+  percentChange,
+  scanConceptMastery,
+  type ChapterInsights,
+  type LessonMasteryRow,
+} from "./insights";
 import type {
   ChapterLeaderboardEntry,
   SchoolChapter,
@@ -592,4 +602,168 @@ export function buildChapterExportCsv(
     return v;
   };
   return [headers, ...rows].map((r) => r.map(escape).join(",")).join("\n");
+}
+
+export async function fetchChapterInsights(
+  chapterId: string
+): Promise<ChapterInsights> {
+  const roster = await fetchRoster(chapterId);
+  const active = roster.filter((r) => r.userId && r.status === "active");
+  const rosterUserIds = new Set(
+    active.map((m) => m.userId!).filter(Boolean)
+  );
+  const rosterSize = rosterUserIds.size;
+
+  const now = Date.now();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const thisWeekStart = new Date(now - weekMs).toISOString();
+  const priorWeekStart = new Date(now - 2 * weekMs).toISOString();
+
+  let healthThisWeek = emptyHealthBreakdown();
+  let healthPriorWeek = emptyHealthBreakdown();
+  let scansThisWeek = 0;
+  let scansPriorWeek = 0;
+
+  const supabase = getSupabaseAdmin();
+  const textsByUser = new Map<string, string[]>();
+
+  const pushText = (userId: string, text: string) => {
+    if (!text.trim()) return;
+    const list = textsByUser.get(userId) ?? [];
+    list.push(text);
+    textsByUser.set(userId, list);
+  };
+
+  if (supabase && rosterSize > 0) {
+    const ids = [...rosterUserIds];
+
+    const { data: scans } = await supabase
+      .from("user_scans")
+      .select("user_id, health, created_at")
+      .in("user_id", ids);
+
+    for (const row of scans ?? []) {
+      const created = row.created_at as string;
+      const health = row.health as string;
+      if (created >= thisWeekStart) {
+        scansThisWeek += 1;
+        healthThisWeek = addHealth(healthThisWeek, health);
+      } else if (created >= priorWeekStart && created < thisWeekStart) {
+        scansPriorWeek += 1;
+        healthPriorWeek = addHealth(healthPriorWeek, health);
+      }
+    }
+
+    const posts = await fetchGalleryPostsFromDb();
+    for (const post of posts) {
+      if (!rosterUserIds.has(post.authorId)) continue;
+      const ts = post.timestamp;
+      if (post.postType === "scan" && post.analysis?.health) {
+        if (ts >= thisWeekStart) {
+          scansThisWeek += 1;
+          healthThisWeek = addHealth(healthThisWeek, post.analysis.health);
+        } else if (ts >= priorWeekStart && ts < thisWeekStart) {
+          scansPriorWeek += 1;
+          healthPriorWeek = addHealth(healthPriorWeek, post.analysis.health);
+        }
+      }
+      if (post.postType === "discussion" && post.discussionBody) {
+        pushText(post.authorId, post.discussionBody);
+      }
+      for (const c of post.comments) {
+        if (rosterUserIds.has(c.authorId)) {
+          pushText(c.authorId, c.body);
+        }
+      }
+    }
+
+    const { data: progressRows } = await supabase
+      .from("academy_module_progress")
+      .select("user_id, module_id, quiz_score, quiz_passed, completed_at")
+      .in("user_id", ids);
+
+    const titles = lessonTitles();
+    const lessonMastery: LessonMasteryRow[] = Object.entries(titles).map(
+      ([lessonId, title]) => {
+        const rows =
+          progressRows?.filter((r) => r.module_id === lessonId) ?? [];
+        const attempted = rows.filter((r) => r.quiz_score != null).length;
+        const passed = rows.filter((r) => r.quiz_passed).length;
+        const avgScore =
+          attempted > 0
+            ? rows.reduce((s, r) => s + Number(r.quiz_score ?? 0), 0) / attempted
+            : 0;
+        return {
+          lessonId,
+          title,
+          studentsPassed: passed,
+          studentsAttempted: attempted,
+          passRate:
+            rosterSize > 0 ? Math.round((passed / rosterSize) * 100) : 0,
+          avgScore,
+        };
+      }
+    );
+
+    let academyGraduates = 0;
+    for (const userId of rosterUserIds) {
+      const userRows =
+        progressRows?.filter((r) => r.user_id === userId && r.quiz_passed) ?? [];
+      if (userRows.length >= Object.keys(titles).length) academyGraduates += 1;
+    }
+    const academyCompletionRate =
+      rosterSize > 0 ? Math.round((academyGraduates / rosterSize) * 100) : 0;
+
+    const conceptMastery = scanConceptMastery(rosterUserIds, textsByUser);
+    const mildStressChangePercent = percentChange(
+      healthThisWeek.mild_stress,
+      healthPriorWeek.mild_stress
+    );
+
+    const narrativeBullets = buildInsightNarratives({
+      rosterSize,
+      scansThisWeek,
+      mildStressChangePercent,
+      healthThisWeek,
+      conceptMastery,
+      lessonMastery,
+      academyCompletionRate,
+    });
+
+    return {
+      rosterSize,
+      scansThisWeek,
+      scansPriorWeek,
+      healthThisWeek,
+      healthPriorWeek,
+      mildStressChangePercent,
+      academyCompletionRate,
+      lessonMastery,
+      conceptMastery,
+      narrativeBullets,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  return {
+    rosterSize,
+    scansThisWeek: 0,
+    scansPriorWeek: 0,
+    healthThisWeek: emptyHealthBreakdown(),
+    healthPriorWeek: emptyHealthBreakdown(),
+    mildStressChangePercent: null,
+    academyCompletionRate: 0,
+    lessonMastery: [],
+    conceptMastery: [],
+    narrativeBullets: buildInsightNarratives({
+      rosterSize,
+      scansThisWeek: 0,
+      mildStressChangePercent: null,
+      healthThisWeek: emptyHealthBreakdown(),
+      conceptMastery: [],
+      lessonMastery: [],
+      academyCompletionRate: 0,
+    }),
+    generatedAt: new Date().toISOString(),
+  };
 }

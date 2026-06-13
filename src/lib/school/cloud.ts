@@ -174,6 +174,19 @@ export async function fetchChapterLeaderboard(
   return data.leaderboard as ChapterLeaderboardEntry[];
 }
 
+export async function fetchChapterInsights(
+  chapterId: string,
+  teacherUserId: string
+): Promise<import("./types").ChapterInsights> {
+  const res = await fetch(
+    `/api/school/insights?chapterId=${encodeURIComponent(chapterId)}&teacherUserId=${encodeURIComponent(teacherUserId)}`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load insights");
+  return data.insights as import("./types").ChapterInsights;
+}
+
 export function getChapterExportUrl(
   chapterId: string,
   teacherUserId: string

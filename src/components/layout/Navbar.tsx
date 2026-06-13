@@ -52,14 +52,13 @@ function NavLink({
 export function Navbar() {
   const pathname = usePathname();
   const { state, hydrated } = usePlatform();
-  const { user, loading: authLoading, signOut, configured: authConfigured } =
-    useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
   const hasProfile = hydrated && Boolean(state.profile?.name?.trim());
-  const signedIn = authConfigured && Boolean(user);
+  const signedIn = Boolean(user);
   const inClass =
     state.schoolChapterRole === "student" && Boolean(state.schoolChapterId);
 
@@ -166,7 +165,7 @@ export function Navbar() {
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {!authLoading && authConfigured && (
+          {!authLoading && (
             signedIn ? (
               <div className="hidden sm:flex items-center gap-2">
                 <Link
@@ -274,7 +273,7 @@ export function Navbar() {
           >
             Scan reef
           </Link>
-          {authConfigured && !signedIn && (
+          {!authLoading && !signedIn && (
             <Link
               href={`/login?next=${encodeURIComponent(pathname)}`}
               onClick={() => setOpen(false)}

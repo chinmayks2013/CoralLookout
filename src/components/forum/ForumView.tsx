@@ -16,11 +16,11 @@ import { GalleryDiscussionForm } from "@/components/gallery/GalleryDiscussionFor
 import { ForumSidebar } from "@/components/forum/ForumSidebar";
 import { GalleryPagination } from "@/components/gallery/GalleryPagination";
 import { safeNumber } from "@/lib/platform/numbers";
+import { CloudSetupBanner } from "@/components/cloud/CloudSetupBanner";
 import {
   ArrowBigUp,
   TrendingUp,
   Clock,
-  CloudOff,
   RefreshCw,
   MessageSquareText,
 } from "lucide-react";
@@ -117,26 +117,10 @@ export function ForumView() {
       />
 
       {!cloudEnabled && (
-        <aside className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-5 mb-6 text-sm text-amber-100">
-          <div className="flex items-start gap-3">
-            <CloudOff className="h-6 w-6 shrink-0 text-amber-400" />
-            <div>
-              <p className="font-semibold text-amber-200 mb-2">
-                Forum is not connected yet
-              </p>
-              <p className="text-amber-100/90 leading-relaxed">
-                {setupMessage ??
-                  "Posts sync when Supabase is configured. Join the community first."}
-              </p>
-              <Link
-                href="/community"
-                className="inline-block mt-3 text-amber-200 underline"
-              >
-                Register →
-              </Link>
-            </div>
-          </div>
-        </aside>
+        <CloudSetupBanner
+          title="Forum is not connected yet"
+          setupMessage={setupMessage}
+        />
       )}
 
       {cloudEnabled && (

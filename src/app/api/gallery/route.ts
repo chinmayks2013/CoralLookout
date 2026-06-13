@@ -2,14 +2,21 @@ import { NextResponse } from "next/server";
 import { fetchGalleryPostsFromDb } from "@/lib/gallery/db";
 import {
   GALLERY_SETUP_MESSAGE,
+  getGalleryEnvStatus,
   isGalleryCloudEnabled,
 } from "@/lib/supabase/config";
 
 export async function GET() {
-  if (!isGalleryCloudEnabled()) {
+  const env = getGalleryEnvStatus();
+  if (!env.configured) {
     return NextResponse.json({
       enabled: false,
-      message: GALLERY_SETUP_MESSAGE,
+      reason: "missing_env",
+      missingEnv: env.missing,
+      message:
+        env.missing.length > 0
+          ? `Missing: ${env.missing.join(", ")}. ${GALLERY_SETUP_MESSAGE}`
+          : GALLERY_SETUP_MESSAGE,
       posts: [],
     });
   }
@@ -19,6 +26,18 @@ export async function GET() {
     return NextResponse.json({ enabled: true, posts });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load gallery";
+    const schemaMissing =
+      /relation|schema cache|does not exist|gallery_posts/i.test(message);
+    if (schemaMissing) {
+      return NextResponse.json({
+        enabled: false,
+        reason: "db_setup",
+        message:
+          "Supabase is connected but gallery tables are missing. Run supabase/schema.sql in the SQL Editor, then npm run check:gallery.",
+        posts: [],
+        error: message,
+      });
+    }
     return NextResponse.json({ enabled: true, posts: [], error: message }, { status: 500 });
   }
 }

@@ -12,11 +12,11 @@ import { GalleryPostCard } from "@/components/gallery/GalleryPostCard";
 import { GallerySidebar } from "@/components/gallery/GallerySidebar";
 import { GalleryPagination } from "@/components/gallery/GalleryPagination";
 import { safeNumber } from "@/lib/platform/numbers";
+import { CloudSetupBanner } from "@/components/cloud/CloudSetupBanner";
 import {
   ArrowBigUp,
   TrendingUp,
   Clock,
-  CloudOff,
   RefreshCw,
 } from "lucide-react";
 
@@ -104,20 +104,10 @@ export function GalleryView() {
       />
 
       {!cloudEnabled && (
-        <aside className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-5 mb-6 text-sm text-amber-100">
-          <div className="flex items-start gap-3">
-            <CloudOff className="h-6 w-6 shrink-0 text-amber-400" />
-            <div>
-              <p className="font-semibold text-amber-200 mb-2">
-                Gallery is not connected yet
-              </p>
-              <p className="text-amber-100/90 leading-relaxed">
-                {setupMessage ??
-                  "Posts and comments only sync when Supabase is configured."}
-              </p>
-            </div>
-          </div>
-        </aside>
+        <CloudSetupBanner
+          title="Gallery is not connected yet"
+          setupMessage={setupMessage}
+        />
       )}
 
       {cloudEnabled && (

@@ -12,7 +12,7 @@ export function LoginView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/scanner";
-  const { configured, loading, signInWithPassword, signUp, signInWithGoogle, user } =
+  const { configured, loading, signInWithPassword, signUp, signInWithGoogle, user, configError } =
     useAuth();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -77,16 +77,42 @@ export function LoginView() {
     );
   }
 
-  if (!configured) {
+  if (!loading && !configured) {
     return (
-      <section className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-slate-300">
-          Sign-in requires Supabase Auth. Add{" "}
-          <code className="text-cyan-300">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to{" "}
-          <code className="text-cyan-300">.env.local</code> and enable Email + Google
-          providers in your Supabase dashboard.
-        </p>
-        <Link href="/" className="mt-4 inline-block text-cyan-300 underline text-sm">
+      <section className="mx-auto max-w-md px-4 py-16">
+        <h1 className="text-xl font-bold text-center mb-4">Sign-in setup</h1>
+        <aside className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-5 text-sm text-amber-100 space-y-3">
+          <p>
+            Supabase auth is not available on this deployment yet. This usually means env
+            vars are missing on <strong>Vercel</strong> or the site needs a{" "}
+            <strong>redeploy</strong> after adding them.
+          </p>
+          {configError && (
+            <p className="text-amber-200/90 text-xs">{configError}</p>
+          )}
+          <ol className="list-decimal list-inside space-y-1.5 text-xs text-amber-100/90">
+            <li>
+              Vercel → your project → <strong>Settings → Environment Variables</strong>
+            </li>
+            <li>
+              Add for <strong>Production</strong>:{" "}
+              <code className="text-amber-200">NEXT_PUBLIC_SUPABASE_URL</code>,{" "}
+              <code className="text-amber-200">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>,{" "}
+              <code className="text-amber-200">SUPABASE_SERVICE_ROLE_KEY</code>
+            </li>
+            <li>
+              <strong>Deployments → Redeploy</strong> (required — not just save vars)
+            </li>
+            <li>
+              Check{" "}
+              <Link href="/api/auth/config" className="underline text-amber-200">
+                /api/auth/config
+              </Link>{" "}
+              — should show <code className="text-amber-200">&quot;ready&quot;: true</code>
+            </li>
+          </ol>
+        </aside>
+        <Link href="/" className="mt-6 inline-block text-cyan-300 underline text-sm">
           Back home
         </Link>
       </section>

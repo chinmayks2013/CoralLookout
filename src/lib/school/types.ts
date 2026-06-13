@@ -44,6 +44,8 @@ export interface ChapterLeaderboardEntry {
   score: number;
 }
 
+export type { ChapterInsights } from "./insights";
+
 export function isChapterSubscriptionActive(
   status: SubscriptionStatus
 ): boolean {

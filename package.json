@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "setup:academy": "node scripts/setup-academy-db.mjs"
+    "setup:academy": "node scripts/setup-academy-db.mjs",
+    "setup:gallery": "node scripts/setup-gallery-db.mjs",
+    "check:gallery": "node scripts/check-gallery.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

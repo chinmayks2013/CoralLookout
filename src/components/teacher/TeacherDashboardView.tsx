@@ -15,12 +15,15 @@ import {
   Loader2,
   Lock,
   Sparkles,
+  BarChart3,
+  LayoutDashboard,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { usePlatform } from "@/context/PlatformContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   createTeacherChapter,
+  fetchChapterInsights,
   fetchChapterLeaderboard,
   fetchRoster,
   fetchTeacherChapter,
@@ -30,11 +33,13 @@ import {
   updateChapterBranding,
 } from "@/lib/school/cloud";
 import type {
+  ChapterInsights,
   ChapterLeaderboardEntry,
   SchoolChapter,
   SchoolRosterMember,
 } from "@/lib/school/types";
 import { isChapterSubscriptionActive } from "@/lib/school/types";
+import { TeacherInsightsPanel } from "@/components/teacher/TeacherInsightsPanel";
 
 const ACCENT_OPTIONS = [
   { id: "cyan", label: "Ocean cyan" },
@@ -46,6 +51,8 @@ const ACCENT_OPTIONS = [
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SCHOOL_SUPPORT_EMAIL ?? "schools@corallookout.org";
 
+type TeacherTab = "overview" | "insights" | "leaderboard";
+
 export function TeacherDashboardView() {
   const searchParams = useSearchParams();
   const { state, hydrated, dispatch } = usePlatform();
@@ -54,6 +61,9 @@ export function TeacherDashboardView() {
   const [chapter, setChapter] = useState<SchoolChapter | null>(null);
   const [roster, setRoster] = useState<SchoolRosterMember[]>([]);
   const [leaderboard, setLeaderboard] = useState<ChapterLeaderboardEntry[]>([]);
+  const [insights, setInsights] = useState<ChapterInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [tab, setTab] = useState<TeacherTab>("insights");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -100,19 +110,35 @@ export function TeacherDashboardView() {
     if (!unlocked) {
       setRoster([]);
       setLeaderboard([]);
+      setInsights(null);
       return;
     }
     try {
-      const [r, lb] = await Promise.all([
+      const [r, lb, ins] = await Promise.all([
         fetchRoster(chapter.id, state.userId),
         fetchChapterLeaderboard(chapter.id, state.userId),
+        fetchChapterInsights(chapter.id, state.userId),
       ]);
       setRoster(r);
       setLeaderboard(lb);
+      setInsights(ins);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load chapter data");
     }
   }, [chapter, state.userId, demoMode]);
+
+  const refreshInsights = useCallback(async () => {
+    if (!chapter || !state.userId || !premiumUnlocked) return;
+    setInsightsLoading(true);
+    try {
+      const ins = await fetchChapterInsights(chapter.id, state.userId);
+      setInsights(ins);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to refresh insights");
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [chapter, state.userId, premiumUnlocked]);
 
   useEffect(() => {
     if (!hydrated || !state.userId) return;
@@ -363,6 +389,58 @@ export function TeacherDashboardView() {
             </div>
           </article>
 
+          {premiumUnlocked && (
+            <div className="flex flex-wrap gap-2 border-b border-cyan-500/15 pb-1">
+              {(
+                [
+                  { id: "insights" as const, label: "Insights", icon: BarChart3 },
+                  { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
+                  { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
+                ] as const
+              ).map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    tab === id
+                      ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 border-b-transparent -mb-px"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {premiumUnlocked && tab === "insights" && (
+            <article className="glass rounded-xl p-6 border border-violet-500/20">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-violet-400" />
+                  Learning insights
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => void refreshInsights()}
+                  disabled={insightsLoading}
+                  className="text-xs text-cyan-300 border border-cyan-500/30 rounded-lg px-3 py-1.5 hover:bg-cyan-500/10 disabled:opacity-50"
+                >
+                  {insightsLoading ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">
+                Concept mastery from reef scans, Reef Academy quizzes, and forum vocabulary —
+                not just posts and views.
+              </p>
+              <TeacherInsightsPanel insights={insights} loading={insightsLoading && !insights} />
+            </article>
+          )}
+
+          {(tab === "overview" || !premiumUnlocked) && (
+          <>
           <div className="grid gap-6 lg:grid-cols-2">
             <article className="glass rounded-xl p-5 border border-cyan-500/15">
               <h3 className="font-semibold mb-2 flex items-center gap-2">
@@ -496,14 +574,19 @@ export function TeacherDashboardView() {
             )}
           </article>
 
-          <article className={`glass rounded-xl p-6 border border-cyan-500/15 ${!premiumUnlocked ? "opacity-60" : ""}`}>
+          </>
+          )}
+
+          {premiumUnlocked && tab === "leaderboard" && (
+          <article className={`glass rounded-xl p-6 border border-cyan-500/15`}>
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-amber-400" />
               Private chapter leaderboard
             </h3>
-            {!premiumUnlocked ? (
-              <p className="text-sm text-slate-500">Subscribe to view class progress.</p>
-            ) : leaderboard.length === 0 ? (
+            <p className="text-xs text-slate-500 mb-4">
+              Activity metrics — switch to Insights for learning outcomes.
+            </p>
+            {leaderboard.length === 0 ? (
               <p className="text-sm text-slate-500">
                 Students appear here once they join and post in the gallery or forum.
               </p>
@@ -536,6 +619,7 @@ export function TeacherDashboardView() {
               </div>
             )}
           </article>
+          )}
         </div>
       )}
     </section>
