@@ -117,10 +117,7 @@ export function ForumView() {
       />
 
       {!cloudEnabled && (
-        <CloudSetupBanner
-          title="Forum is not connected yet"
-          setupMessage={setupMessage}
-        />
+        <CloudSetupBanner feature="forum" setupMessage={setupMessage} />
       )}
 
       {cloudEnabled && (

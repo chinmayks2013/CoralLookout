@@ -26,6 +26,18 @@ export async function GET() {
     return NextResponse.json({ enabled: true, posts });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load gallery";
+    const unreachable =
+      /ENOTFOUND|fetch failed|getaddrinfo|ECONNREFUSED/i.test(message);
+    if (unreachable) {
+      return NextResponse.json({
+        enabled: false,
+        reason: "unreachable",
+        message:
+          "Cannot reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL in .env.local — open Supabase Dashboard → Settings → API and copy the Project URL. Run npm run check:gallery to verify.",
+        posts: [],
+        error: message,
+      });
+    }
     const schemaMissing =
       /relation|schema cache|does not exist|gallery_posts/i.test(message);
     if (schemaMissing) {

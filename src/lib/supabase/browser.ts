@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/config";
+import { supabaseFetch } from "@/lib/supabase/fetch";
 
 let cachedClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient | null> | null = null;
@@ -12,7 +13,9 @@ export function createSupabaseBrowserClient(
   const resolvedUrl = url?.trim() || getSupabaseUrl();
   const resolvedKey = anonKey?.trim() || getSupabaseAnonKey();
   if (!resolvedUrl || !resolvedKey) return null;
-  return createBrowserClient(resolvedUrl, resolvedKey);
+  return createBrowserClient(resolvedUrl, resolvedKey, {
+    global: { fetch: supabaseFetch },
+  });
 }
 
 /** Build-time check only — prefer ensureSupabaseBrowserClient() on Vercel. */

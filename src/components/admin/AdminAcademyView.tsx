@@ -119,9 +119,11 @@ export function AdminAcademyView() {
             Sign in
           </button>
           <p className="text-xs text-slate-500 text-center">
-            Set <code className="text-slate-400">ADMIN_SECRET</code> in{" "}
-            <code className="text-slate-400">.env.local</code> and run migration{" "}
-            <code className="text-slate-400">006_academy_progress.sql</code>
+            Enter the same value as <code className="text-slate-400">ADMIN_SECRET</code> in{" "}
+            <code className="text-slate-400">.env.local</code>, then restart{" "}
+            <code className="text-slate-400">npm run dev</code>. On Vercel, add{" "}
+            <code className="text-slate-400">ADMIN_SECRET</code> under Environment Variables and
+            redeploy.
           </p>
         </form>
         <p className="text-center mt-6">

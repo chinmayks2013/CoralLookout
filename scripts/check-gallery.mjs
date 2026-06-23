@@ -3,8 +3,10 @@
  * Run: npm run check:gallery
  */
 import { createClient } from "@supabase/supabase-js";
+import dns from "node:dns/promises";
 import dotenv from "dotenv";
 import { resolve } from "node:path";
+import { URL } from "node:url";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.local") });
 dotenv.config();
@@ -20,12 +22,31 @@ if (!url || !serviceKey) {
   process.exit(1);
 }
 
-const supabase = createClient(url, serviceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+let hostname;
+try {
+  hostname = new URL(url).hostname;
+} catch {
+  console.error("\n❌ NEXT_PUBLIC_SUPABASE_URL is not a valid URL:", url);
+  process.exit(1);
+}
 
 console.log("\nChecking Coral Lookout gallery…");
 console.log("Project:", url);
+
+try {
+  await dns.lookup(hostname);
+  console.log("✅ DNS resolves for", hostname);
+} catch {
+  console.error(`\n❌ DNS failed — "${hostname}" does not exist.`);
+  console.error("   Your Supabase project URL is wrong or the project was deleted/paused.");
+  console.error("   → https://supabase.com/dashboard → your project → Settings → API → Project URL");
+  console.error("   → Copy that URL into .env.local as NEXT_PUBLIC_SUPABASE_URL, then restart dev.\n");
+  process.exit(1);
+}
+
+const supabase = createClient(url, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 let ok = true;
 

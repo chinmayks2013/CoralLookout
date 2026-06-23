@@ -2,18 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { NextResponse } from "next/server";
 import pg from "pg";
-
-function verifyAdminSecret(request: Request): boolean {
-  const expected = process.env.ADMIN_SECRET?.trim();
-  if (!expected) return false;
-  const auth = request.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return false;
-  return auth.slice(7) === expected;
-}
+import { verifyAdminRequest } from "@/lib/admin/auth";
 
 export async function POST(request: Request) {
-  if (!verifyAdminSecret(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = verifyAdminRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const dbUrl =

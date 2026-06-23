@@ -104,10 +104,7 @@ export function GalleryView() {
       />
 
       {!cloudEnabled && (
-        <CloudSetupBanner
-          title="Gallery is not connected yet"
-          setupMessage={setupMessage}
-        />
+        <CloudSetupBanner feature="gallery" setupMessage={setupMessage} />
       )}
 
       {cloudEnabled && (

@@ -1,30 +1,48 @@
 export const FOUNDER = {
   name: "Chinmay Maheshwari",
   age: 13,
-  title: "Founder, CEO & Leader",
-  tagline: "A 13-year-old leader who stepped up for coral — and for the community behind it.",
+  title: "Founder & CEO",
+  tagline:
+    "Building a free, student-led platform so young conservationists can monitor reefs, learn, and act together.",
   email: "chinmayks2013@gmail.com",
 } as const;
 
-/** Short lines — leadership first. */
+export const FOUNDER_MISSION =
+  "Coral Lookout exists to give students real tools for reef protection — not just slides and textbooks. I lead this project so our community can share scans, learn together, and contribute data the world can use.";
+
+export const IMPACT_PILLARS = [
+  {
+    label: "Open access",
+    detail: "Free scanner, academy, and community — no paywall on conservation learning.",
+  },
+  {
+    label: "Student voice",
+    detail: "Built with and for young reef advocates, teachers, and citizen scientists.",
+  },
+  {
+    label: "Shared data",
+    detail: "Gallery, forum, and global rankings connect contributors into one network.",
+  },
+] as const;
+
+/** Leadership — concise, credible, community-oriented. */
 export const LEADERSHIP_LINES = [
-  "At 13, I lead Coral Lookout as Founder, CEO, and the person accountable for every decision.",
-  "I stepped up when no one else did — that's leadership.",
-  "I set the vision and made the tough calls for weeks until this platform was real.",
-  "I lead by listening to students, teachers, and the reef community first.",
-  "I don't disappear when it's hard — leaders stay until the job is done.",
-  "I protect my community while pushing everyone forward together.",
+  "At 13, I founded Coral Lookout to turn student passion for reefs into measurable action.",
+  "I set the product vision and hold myself accountable for shipping tools the community can rely on.",
+  "I prioritize feedback from students, teachers, and divers before adding new features.",
+  "I believe leadership means building in public — transparent, inclusive, and mission-first.",
+  "When infrastructure is hard, I stay on it until gallery, auth, and shared data work for everyone.",
 ] as const;
 
 export const COMMUNITY_LINES = [
-  "Coral Lookout is free and open — built to help, not gatekeep.",
-  "Anyone can learn, scan reefs, and share with the community.",
-  "I built a place where young conservationists finally have a voice.",
+  "Every scan, quiz, and forum post strengthens a global student conservation network.",
+  "Teachers get classroom insights; students get certificates, challenges, and a place to be heard.",
+  "Partners and schools are welcome — the goal is impact, not exclusivity.",
 ] as const;
 
 export const LEADERSHIP_TRAITS = [
   "Vision",
   "Accountability",
-  "Courage",
+  "Integrity",
   "Community-first",
 ] as const;

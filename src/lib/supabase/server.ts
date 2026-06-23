@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./config";
+import { supabaseFetch } from "./fetch";
 
 export async function createSupabaseServerClient() {
   const url = getSupabaseUrl();
@@ -10,6 +11,7 @@ export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {
+    global: { fetch: supabaseFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -20,7 +22,7 @@ export async function createSupabaseServerClient() {
             cookieStore.set(name, value, options);
           });
         } catch {
-          /* set from Server Component — middleware handles refresh */
+          /* set from Server Component — proxy handles refresh */
         }
       },
     },

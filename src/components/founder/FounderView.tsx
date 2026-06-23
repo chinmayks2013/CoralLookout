@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Crown, Heart, Mail } from "lucide-react";
+import { ArrowRight, Crown, Heart, Mail, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
   COMMUNITY_LINES,
   FOUNDER,
+  FOUNDER_MISSION,
+  IMPACT_PILLARS,
   LEADERSHIP_LINES,
   LEADERSHIP_TRAITS,
 } from "@/lib/data/founder";
@@ -20,7 +22,7 @@ export function FounderView() {
   return (
     <section className="mx-auto max-w-lg px-4 py-8 sm:py-12 min-w-0">
       <PageHeader
-        badge="Leadership · Age 13"
+        badge="Student leadership"
         title={FOUNDER.name}
         subtitle={FOUNDER.tagline}
       />
@@ -35,15 +37,33 @@ export function FounderView() {
         <p className="text-[11px] font-semibold uppercase tracking-wider text-cyan-400">
           {FOUNDER.title}
         </p>
-        <p className="text-xs text-teal-300/90 mt-1">{FOUNDER.age} years old</p>
+        <p className="text-xs text-teal-300/90 mt-1">Age {FOUNDER.age}</p>
+        <p className="mt-4 text-sm text-slate-300 leading-relaxed text-pretty">
+          {FOUNDER_MISSION}
+        </p>
         <a
           href={`mailto:${FOUNDER.email}`}
-          className="inline-flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200 mt-3"
+          className="inline-flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200 mt-4"
         >
           <Mail className="h-3.5 w-3.5 shrink-0" />
           {FOUNDER.email}
         </a>
       </article>
+
+      <section className="mb-6 grid gap-2">
+        {IMPACT_PILLARS.map(({ label, detail }) => (
+          <div
+            key={label}
+            className="rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3.5 py-3"
+          >
+            <p className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              {label}
+            </p>
+            <p className="text-xs text-slate-400 mt-1 leading-snug">{detail}</p>
+          </div>
+        ))}
+      </section>
 
       <div className="flex flex-wrap gap-1.5 justify-center mb-5">
         {LEADERSHIP_TRAITS.map((trait) => (
@@ -59,7 +79,7 @@ export function FounderView() {
       <section className="mb-6">
         <h2 className="text-sm font-bold mb-3 flex items-center gap-2 text-amber-300">
           <Crown className="h-4 w-4 shrink-0" />
-          My leadership
+          How I lead
         </h2>
         <ul className="space-y-2">
           {LEADERSHIP_LINES.map((line, i) => (
@@ -76,7 +96,7 @@ export function FounderView() {
       <section className="mb-8">
         <h2 className="text-sm font-bold mb-3 flex items-center gap-2 text-teal-300">
           <Heart className="h-4 w-4 shrink-0" />
-          Helping the community
+          Contributing to the community
         </h2>
         <ul className="space-y-2">
           {COMMUNITY_LINES.map((line, i) => (

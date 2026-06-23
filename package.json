@@ -9,7 +9,8 @@
     "lint": "eslint",
     "setup:academy": "node scripts/setup-academy-db.mjs",
     "setup:gallery": "node scripts/setup-gallery-db.mjs",
-    "check:gallery": "node scripts/check-gallery.mjs"
+    "check:gallery": "node scripts/check-gallery.mjs",
+    "push:vercel-env": "node scripts/push-vercel-env.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
