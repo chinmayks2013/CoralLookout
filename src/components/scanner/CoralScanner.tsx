@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
   Loader2,
@@ -25,6 +25,8 @@ import { useAuth } from "@/context/AuthContext";
 export function CoralScanner() {
   const { recordScan, state } = usePlatform();
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +44,7 @@ export function CoralScanner() {
   const [modelVersion, setModelVersion] = useState<string | null>(null);
   const [wandbRunUrl, setWandbRunUrl] = useState<string | undefined>();
   const [rejection, setRejection] = useState<ReefValidationResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     void fetch("/api/pipeline/analyze").catch(() => {});
@@ -62,6 +65,9 @@ export function CoralScanner() {
     setShareToGallery(false);
     setImageRightsConfirmed(false);
     setError(null);
+    setIsDragging(false);
+    dragDepthRef.current = 0;
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
@@ -82,6 +88,8 @@ export function CoralScanner() {
     setLocationName("");
     setLat(null);
     setLng(null);
+    setIsDragging(false);
+    dragDepthRef.current = 0;
     const url = URL.createObjectURL(file);
     setPreview(url);
     setLoading(true);
@@ -103,6 +111,7 @@ export function CoralScanner() {
       }
     } finally {
       setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [state.userId]);
 
@@ -202,39 +211,104 @@ export function CoralScanner() {
     recordScan,
   ]);
 
+  const hasFiles = useCallback((e: React.DragEvent) => {
+    return Array.from(e.dataTransfer.types).includes("Files");
+  }, []);
+
+  const onDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!hasFiles(e) || loading) return;
+      dragDepthRef.current += 1;
+      setIsDragging(true);
+    },
+    [hasFiles, loading]
+  );
+
+  const onDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!hasFiles(e) || loading) return;
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [hasFiles, loading]
+  );
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragging(false);
+  }, []);
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      e.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+      if (loading) return;
+      const file = e.dataTransfer.files?.[0];
+      if (file) void handleFile(file);
     },
-    [handleFile]
+    [handleFile, loading]
   );
+
+  const openFilePicker = useCallback(() => {
+    if (loading) return;
+    fileInputRef.current?.click();
+  }, [loading]);
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="space-y-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/*"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleFile(file);
+          }}
+        />
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Upload coral reef image. Drop an image here or press Enter to browse."
           onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className="relative glass rounded-2xl border-2 border-dashed border-cyan-500/30 p-8 text-center min-h-[320px] flex flex-col items-center justify-center hover:border-cyan-400/50 transition-colors"
+          onDragEnter={onDragEnter}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onClick={openFilePicker}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openFilePicker();
+            }
+          }}
+          className={`relative glass rounded-2xl border-2 border-dashed p-8 text-center min-h-[320px] flex flex-col items-center justify-center transition-colors cursor-pointer ${
+            isDragging
+              ? "border-cyan-300 bg-cyan-500/15 scale-[1.01]"
+              : "border-cyan-500/30 hover:border-cyan-400/50"
+          } ${loading ? "pointer-events-none" : ""}`}
         >
-          <input
-            type="file"
-            accept="image/*"
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
+          {isDragging && (
+            <div className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-cyan-300/80 bg-slate-950/80">
+              <p className="text-cyan-200 font-medium">Drop image to analyze</p>
+            </div>
+          )}
           {preview ? (
-            <article className="relative w-full aspect-video rounded-xl overflow-hidden">
+            <article className="relative w-full aspect-video rounded-xl overflow-hidden pointer-events-none">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={preview}
                 alt="Reef preview"
                 className="w-full h-full object-cover"
+                draggable={false}
               />
               {result &&
                 result.damageZones.map((zone, i) => (
@@ -253,6 +327,11 @@ export function CoralScanner() {
                 <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center">
                   <Loader2 className="h-10 w-10 text-cyan-400 animate-spin" />
                 </div>
+              )}
+              {!loading && !isDragging && (
+                <p className="absolute bottom-2 inset-x-2 rounded-lg bg-slate-950/75 px-2 py-1 text-xs text-slate-300">
+                  Drop a new image or click to replace
+                </p>
               )}
             </article>
           ) : (
