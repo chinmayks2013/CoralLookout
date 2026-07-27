@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { compressImageForGallery } from "@/lib/gallery/image";
 import { getHealthColor } from "@/lib/scanner/analyze";
+import { fileFromDropSnapshot, isImageDrag, snapshotDataTransfer } from "@/lib/scanner/drop-image";
 import { runPipelineAnalysis, PipelineAnalysisError } from "@/lib/pipeline/client";
 import type { ConservationPlan, PipelineStepTrace, ReefValidationResult } from "@/lib/pipeline/types";
 import type { ScanResult } from "@/lib/types";
@@ -71,10 +72,19 @@ export function CoralScanner() {
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) {
+    const looksLikeImage =
+      file.type.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|bmp|heic|avif)$/i.test(file.name);
+    if (!looksLikeImage) {
       setError("Please upload an image file (JPG, PNG, WebP).");
+      setLoading(false);
       return;
     }
+    const imageFile = file.type.startsWith("image/")
+      ? file
+      : new File([file], file.name || "reef-image.jpg", {
+          type: "image/jpeg",
+        });
     setError(null);
     setResult(null);
     setPipelineSteps([]);
@@ -90,11 +100,11 @@ export function CoralScanner() {
     setLng(null);
     setIsDragging(false);
     dragDepthRef.current = 0;
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(imageFile);
     setPreview(url);
     setLoading(true);
     try {
-      const pipeline = await runPipelineAnalysis(file, state.userId);
+      const pipeline = await runPipelineAnalysis(imageFile, state.userId);
       setResult(pipeline.scan);
       setPipelineSteps(pipeline.steps);
       setConservationPlan(pipeline.plan);
@@ -114,6 +124,33 @@ export function CoralScanner() {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [state.userId]);
+
+  const ingestSnapshot = useCallback(
+    async (snapshot: ReturnType<typeof snapshotDataTransfer>) => {
+      if (loading) return;
+      setError(null);
+      setIsDragging(false);
+      dragDepthRef.current = 0;
+      setLoading(true);
+      try {
+        const file = await fileFromDropSnapshot(snapshot);
+        if (!file) {
+          setError(
+            "Could not read that image. Drop a photo file, or drag an image from another browser tab."
+          );
+          setLoading(false);
+          return;
+        }
+        await handleFile(file);
+      } catch {
+        setError(
+          "Could not load the dropped image. Try saving it and dropping the file."
+        );
+        setLoading(false);
+      }
+    },
+    [handleFile, loading]
+  );
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -211,29 +248,25 @@ export function CoralScanner() {
     recordScan,
   ]);
 
-  const hasFiles = useCallback((e: React.DragEvent) => {
-    return Array.from(e.dataTransfer.types).includes("Files");
-  }, []);
-
   const onDragEnter = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!hasFiles(e) || loading) return;
+      if (loading || !isImageDrag(e.dataTransfer)) return;
       dragDepthRef.current += 1;
       setIsDragging(true);
     },
-    [hasFiles, loading]
+    [loading]
   );
 
   const onDragOver = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!hasFiles(e) || loading) return;
+      if (loading || !isImageDrag(e.dataTransfer)) return;
       e.dataTransfer.dropEffect = "copy";
     },
-    [hasFiles, loading]
+    [loading]
   );
 
   const onDragLeave = useCallback((e: React.DragEvent) => {
@@ -247,19 +280,35 @@ export function CoralScanner() {
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      dragDepthRef.current = 0;
-      setIsDragging(false);
-      if (loading) return;
-      const file = e.dataTransfer.files?.[0];
-      if (file) void handleFile(file);
+      // Snapshot synchronously — browsers clear DataTransfer after this handler returns.
+      const snapshot = snapshotDataTransfer(e.dataTransfer);
+      void ingestSnapshot(snapshot);
     },
-    [handleFile, loading]
+    [ingestSnapshot]
   );
 
   const openFilePicker = useCallback(() => {
     if (loading) return;
     fileInputRef.current?.click();
   }, [loading]);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (loading || !e.clipboardData) return;
+      const dt = e.clipboardData;
+      const hasImage =
+        Array.from(dt.items || []).some(
+          (item) => item.kind === "file" && item.type.startsWith("image/")
+        ) ||
+        Array.from(dt.files || []).some((f) => f.type.startsWith("image/"));
+      if (!hasImage) return;
+      e.preventDefault();
+      const snapshot = snapshotDataTransfer(dt);
+      void ingestSnapshot(snapshot);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [ingestSnapshot, loading]);
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -341,7 +390,7 @@ export function CoralScanner() {
                 Drop a coral reef image here
               </p>
               <p className="text-sm text-slate-400">
-                or click to browse — JPG, PNG, WebP
+                From your files or another browser tab — or click to browse / paste
               </p>
             </>
           )}
