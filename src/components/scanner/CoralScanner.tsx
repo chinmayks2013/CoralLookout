@@ -276,7 +276,7 @@ export function CoralScanner() {
             {rejection && (
               <article className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-sm space-y-2">
                 <p className="font-semibold text-red-200">
-                  AI reef check failed
+                  Not recognized as a coral reef
                 </p>
                 <p className="text-slate-300">
                   Detected: <span className="text-red-100">{rejection.detectedSubject}</span>
@@ -286,7 +286,7 @@ export function CoralScanner() {
                   {rejection.provider}/{rejection.model}
                 </p>
                 <p className="text-slate-500 text-xs">
-                  Upload an underwater coral reef photo to continue.
+                  Try a clearer underwater coral photo (blue/green water, coral structures). Non-reef images are blocked before health analysis.
                 </p>
               </article>
             )}

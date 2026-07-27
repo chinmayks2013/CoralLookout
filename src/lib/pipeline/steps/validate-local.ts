@@ -20,7 +20,10 @@ const NON_REEF_LABELS = [
 ];
 
 const MIN_CLIP_REEF_SCORE = 0.22;
-const MIN_HEURISTIC_SCORE = 0.52;
+/** Pass bar for local color heuristic — must stay below typical reef-like blue/green floors. */
+const MIN_HEURISTIC_SCORE = 0.42;
+/** validate-reef requires ≥0.55 confidence even when isCoralReef is true. */
+const MIN_ACCEPT_CONFIDENCE = 0.58;
 const HF_CLIP_MODEL =
   process.env.HF_VISION_MODEL?.trim() || "openai/clip-vit-base-patch16";
 
@@ -92,11 +95,12 @@ async function validateWithHfClip(
 async function validateWithSharpHeuristics(
   visionBuffer: Buffer
 ): Promise<ReefValidationResult> {
-  const { data, info } = await sharp(visionBuffer)
+  const { data } = await sharp(visionBuffer)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  let redSum = 0;
   let blueSum = 0;
   let greenSum = 0;
   let warmSum = 0;
@@ -108,6 +112,7 @@ async function validateWithSharpHeuristics(
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
+    redSum += r;
     blueSum += b;
     greenSum += g;
     warmSum += r > g && r > b ? 1 : 0;
@@ -116,27 +121,65 @@ async function validateWithSharpHeuristics(
     samples++;
   }
 
+  const redRatio = redSum / samples / 255;
   const blueRatio = blueSum / samples / 255;
   const greenRatio = greenSum / samples / 255;
   const warmRatio = warmSum / samples;
   const grayRatio = graySum / samples;
+  const coolBias = (blueRatio + greenRatio) / 2 - redRatio;
+
+  // Soft gray penalty — bleached coral is pale, not a hard reject.
+  const grayPenalty = Math.max(0, grayRatio - 0.55) * 0.2;
+  // Soft warm penalty — orange/pink coral is common underwater.
+  const warmPenalty = Math.max(0, warmRatio - 0.4) * 0.15;
 
   const reefScore =
-    blueRatio * 0.45 +
-    greenRatio * 0.35 +
-    (1 - warmRatio) * 0.15 +
-    (1 - grayRatio) * 0.05;
-  const isCoralReef = reefScore >= MIN_HEURISTIC_SCORE;
+    Math.max(0, coolBias) * 0.4 +
+    blueRatio * 0.3 +
+    greenRatio * 0.25 +
+    (1 - warmPenalty) * 0.03 +
+    (1 - grayPenalty) * 0.02;
+
+  // Require cool cast — absolute blue/green alone matches skin & gray solids.
+  const looksUnderwater =
+    coolBias > 0.05 &&
+    blueRatio > redRatio &&
+    blueRatio > 0.34 &&
+    greenRatio > 0.28 &&
+    warmRatio < 0.4;
+
+  const looksBleachedReef =
+    grayRatio > 0.3 &&
+    coolBias > 0.04 &&
+    blueRatio > redRatio &&
+    blueRatio > 0.3 &&
+    warmRatio < 0.25;
+
+  const isCoralReef =
+    reefScore >= MIN_HEURISTIC_SCORE || looksUnderwater || looksBleachedReef;
+
   const confidence = isCoralReef
-    ? Math.min(0.92, Math.max(MIN_HEURISTIC_SCORE + 0.08, reefScore))
-    : Math.min(0.85, Math.max(0.35, 1 - reefScore));
+    ? Math.min(
+        0.92,
+        Math.max(
+          MIN_ACCEPT_CONFIDENCE,
+          reefScore + (looksUnderwater || looksBleachedReef ? 0.15 : 0.08)
+        )
+      )
+    : Math.min(0.85, Math.max(0.3, 1 - reefScore));
 
   let detectedSubject = "unknown scene";
-  if (warmRatio > 0.35) detectedSubject = "warm-toned photo (likely not underwater)";
-  else if (grayRatio > 0.45) detectedSubject = "indoor or grayscale scene";
-  else if (blueRatio > 0.38 && greenRatio > 0.32)
+  if (isCoralReef && looksBleachedReef) {
+    detectedSubject = "bleached or pale coral reef";
+  } else if (isCoralReef || looksUnderwater) {
     detectedSubject = "underwater reef-like colors";
-  else detectedSubject = "non-reef image";
+  } else if (warmRatio > 0.45 && coolBias < 0) {
+    detectedSubject = "warm-toned photo (likely not underwater)";
+  } else if (grayRatio > 0.55 && coolBias < 0.02) {
+    detectedSubject = "indoor or grayscale scene";
+  } else {
+    detectedSubject = "non-reef image";
+  }
 
   return {
     isCoralReef,
@@ -144,9 +187,9 @@ async function validateWithSharpHeuristics(
     detectedSubject,
     reason: isCoralReef
       ? "Underwater color profile matches coral reef imagery."
-      : `Image looks like ${detectedSubject}.`,
+      : `Color profile does not match underwater coral reef imagery (detected: ${detectedSubject}).`,
     provider: "local",
-    model: "sharp-heuristic-v1",
+    model: "sharp-heuristic-v2",
   };
 }
 
