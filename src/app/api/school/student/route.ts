@@ -29,6 +29,8 @@ export async function GET(request: Request) {
       leaderboard: classActive ? data.leaderboard : [],
       myRank: classActive ? data.myRank : 0,
       myStats: classActive ? data.myStats : null,
+      assignments: data.assignments,
+      myCompletions: data.myCompletions,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load class";

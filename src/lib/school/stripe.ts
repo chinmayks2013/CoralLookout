@@ -7,6 +7,30 @@ export function isStripeConfigured(): boolean {
   );
 }
 
+/** Annual billing is optional — present only when its price id is set. */
+export function isAnnualBillingConfigured(): boolean {
+  return Boolean(
+    isStripeConfigured() && process.env.STRIPE_SCHOOL_ANNUAL_PRICE_ID?.trim()
+  );
+}
+
+export type BillingInterval = "month" | "year";
+
+export function priceIdForInterval(interval: BillingInterval): string {
+  const priceId =
+    interval === "year"
+      ? process.env.STRIPE_SCHOOL_ANNUAL_PRICE_ID?.trim()
+      : process.env.STRIPE_SCHOOL_PRICE_ID?.trim();
+  if (!priceId) {
+    throw new Error(
+      interval === "year"
+        ? "Annual billing is not configured. Add STRIPE_SCHOOL_ANNUAL_PRICE_ID."
+        : "STRIPE_SCHOOL_PRICE_ID is not configured."
+    );
+  }
+  return priceId;
+}
+
 export function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");

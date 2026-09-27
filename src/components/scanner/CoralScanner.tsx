@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Upload,
   Loader2,
@@ -9,6 +10,7 @@ import {
   CheckCircle,
   ImageIcon,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 import { compressImageForGallery } from "@/lib/gallery/image";
 import { getHealthColor } from "@/lib/scanner/analyze";
@@ -21,9 +23,20 @@ import Link from "next/link";
 import { PipelineProgress } from "@/components/scanner/PipelineProgress";
 import { ConservationPlanCard } from "@/components/scanner/ConservationPlanCard";
 import { LocationPinPicker } from "@/components/scanner/LocationPinPicker";
+import { AiTrustPanel } from "@/components/scanner/AiTrustPanel";
 import { useAuth } from "@/context/AuthContext";
+import { ReviewBadge, type ReviewStatus } from "@/components/ui/ReviewBadge";
+import { GraduationCap } from "lucide-react";
+import {
+  completeAssignment,
+  fetchAssignment,
+  fetchStudentClass,
+  type SchoolAssignmentDto,
+} from "@/lib/school/cloud";
 
 export function CoralScanner() {
+  const searchParams = useSearchParams();
+  const assignmentIdFromUrl = searchParams.get("assignmentId");
   const { recordScan, state } = usePlatform();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,10 +59,70 @@ export function CoralScanner() {
   const [wandbRunUrl, setWandbRunUrl] = useState<string | undefined>();
   const [rejection, setRejection] = useState<ReefValidationResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [requestReview, setRequestReview] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>("none");
+  const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(
+    assignmentIdFromUrl
+  );
+  const [activeAssignment, setActiveAssignment] =
+    useState<SchoolAssignmentDto | null>(null);
+  const [openAssignments, setOpenAssignments] = useState<SchoolAssignmentDto[]>(
+    []
+  );
+  const [assignmentCompleteNote, setAssignmentCompleteNote] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     void fetch("/api/pipeline/analyze").catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setActiveAssignmentId(assignmentIdFromUrl);
+  }, [assignmentIdFromUrl]);
+
+  useEffect(() => {
+    if (!activeAssignmentId) {
+      setActiveAssignment(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchAssignment(activeAssignmentId)
+      .then((a) => {
+        if (!cancelled) setActiveAssignment(a);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveAssignment(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAssignmentId]);
+
+  useEffect(() => {
+    if (!state.userId || activeAssignmentId) {
+      setOpenAssignments([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchStudentClass(state.userId)
+      .then((data) => {
+        if (cancelled || !data.enrolled) return;
+        const done = new Set(
+          (data.myCompletions ?? []).map((c) => c.assignmentId)
+        );
+        setOpenAssignments(
+          (data.assignments ?? []).filter((a) => !done.has(a.id))
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setOpenAssignments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.userId, activeAssignmentId]);
 
   const resetScan = useCallback(() => {
     setPreview(null);
@@ -67,6 +140,10 @@ export function CoralScanner() {
     setImageRightsConfirmed(false);
     setError(null);
     setIsDragging(false);
+    setNotes("");
+    setRequestReview(false);
+    setReviewStatus("none");
+    setAssignmentCompleteNote(null);
     dragDepthRef.current = 0;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
@@ -99,6 +176,9 @@ export function CoralScanner() {
     setLat(null);
     setLng(null);
     setIsDragging(false);
+    setNotes("");
+    setRequestReview(false);
+    setReviewStatus("none");
     dragDepthRef.current = 0;
     const url = URL.createObjectURL(imageFile);
     setPreview(url);
@@ -197,14 +277,22 @@ export function CoralScanner() {
       );
       return;
     }
+    if (
+      activeAssignment?.requiresPin &&
+      (lat === null || lng === null)
+    ) {
+      setError("This assignment requires a pinned location before you can turn it in.");
+      return;
+    }
     setSaving(true);
     setError(null);
+    setAssignmentCompleteNote(null);
     try {
       let imageDataUrl: string | undefined;
       if (shareToGallery) {
         imageDataUrl = await compressImageForGallery(preview);
       }
-      const { galleryPublished, galleryError, cloudSaved, cloudError } =
+      const { scanId, galleryPublished, galleryError, cloudSaved, cloudError } =
         await recordScan(
         result,
         {
@@ -216,6 +304,8 @@ export function CoralScanner() {
           shareToGallery,
           imageDataUrl,
           imageRightsConfirmed: shareToGallery && imageRightsConfirmed,
+          notes: notes.trim() || undefined,
+          modelVersion: modelVersion ?? undefined,
         }
       );
       if (!cloudSaved && user) {
@@ -228,6 +318,41 @@ export function CoralScanner() {
           galleryError ??
             "Scan saved to your map, but gallery is offline. Set up Supabase (see Gallery page)."
         );
+      }
+      if (requestReview && cloudSaved && user) {
+        try {
+          const res = await fetch("/api/school/reviews", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scanId, userId: user.id }),
+          });
+          const data = await res.json();
+          if (res.ok) setReviewStatus(data.reviewStatus as ReviewStatus);
+        } catch {
+          // Non-fatal — review request is a bonus, save already succeeded.
+        }
+      }
+      if (activeAssignmentId && cloudSaved && user) {
+        const pinOk = !activeAssignment?.requiresPin || (lat !== null && lng !== null);
+        const scanOk = activeAssignment?.requiresScan !== false;
+        if (pinOk && scanOk) {
+          try {
+            await completeAssignment({
+              assignmentId: activeAssignmentId,
+              userId: user.id,
+              scanId,
+            });
+            setAssignmentCompleteNote(
+              activeAssignment?.title
+                ? `Marked complete for “${activeAssignment.title}”.`
+                : "Marked complete for your class assignment."
+            );
+          } catch {
+            setError(
+              "Scan saved, but class assignment could not be marked complete. Try again from My Class."
+            );
+          }
+        }
       }
       setSaved(true);
     } catch {
@@ -243,9 +368,14 @@ export function CoralScanner() {
     lng,
     shareToGallery,
     imageRightsConfirmed,
+    notes,
+    modelVersion,
+    requestReview,
     state.profile,
     user,
     recordScan,
+    activeAssignmentId,
+    activeAssignment,
   ]);
 
   const onDragEnter = useCallback(
@@ -311,6 +441,50 @@ export function CoralScanner() {
   }, [ingestSnapshot, loading]);
 
   return (
+    <div className="space-y-4">
+      {activeAssignment && (
+        <aside className="rounded-xl border border-teal-500/30 bg-teal-950/25 px-4 py-3 text-sm text-teal-100">
+          <p className="font-semibold flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-teal-300" />
+            Class assignment: {activeAssignment.title}
+          </p>
+          <p className="text-xs text-teal-200/80 mt-1">
+            {activeAssignment.requiresScan ? "Scan a reef photo" : "Scan optional"}
+            {" · "}
+            {activeAssignment.requiresPin
+              ? "Pin it on the map before saving"
+              : "Pin optional"}
+            . Saving a matching observation will mark this work complete.
+          </p>
+          <Link href="/class" className="text-xs text-cyan-300 underline mt-2 inline-block">
+            Back to My Class
+          </Link>
+        </aside>
+      )}
+
+      {!activeAssignmentId && openAssignments.length > 0 && (
+        <aside className="rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-4 py-3 text-sm">
+          <label className="block text-cyan-100 font-medium mb-1.5">
+            Attach to open class assignment (optional)
+          </label>
+          <select
+            value=""
+            onChange={(e) => {
+              const id = e.target.value;
+              if (id) setActiveAssignmentId(id);
+            }}
+            className="w-full rounded-lg bg-slate-900/60 border border-cyan-500/25 px-3 py-2 text-sm text-slate-200"
+          >
+            <option value="">Don&apos;t attach</option>
+            {openAssignments.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title}
+              </option>
+            ))}
+          </select>
+        </aside>
+      )}
+
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="space-y-4">
         <input
@@ -465,6 +639,12 @@ export function CoralScanner() {
 
             <p className="text-slate-300 text-sm leading-relaxed">{result.explanation}</p>
 
+            <AiTrustPanel
+              confidence={result.confidence}
+              modelVersion={modelVersion}
+              compact
+            />
+
             {conservationPlan && (
               <ConservationPlanCard plan={conservationPlan} />
             )}
@@ -491,6 +671,14 @@ export function CoralScanner() {
                     setError(null);
                   }}
                 />
+                {lat === null || lng === null ? (
+                  <p className="text-xs text-amber-200/90 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                    A pinned location makes this observation useful for research,
+                    the map, and your class leaderboard. Drop a pin above, tap
+                    &ldquo;Use my location&rdquo;, or enter coordinates manually —
+                    it&apos;s required before saving.
+                  </p>
+                ) : null}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-slate-400 hover:text-slate-300">
                     Or enter coordinates manually
@@ -526,6 +714,17 @@ export function CoralScanner() {
                 >
                   {locating ? "Getting location…" : "Use my location"}
                 </button>
+                <label className="block text-sm text-slate-400">
+                  Notes (optional)
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Anything worth flagging for teachers or researchers — e.g. recent storm, visible bleaching edge, current strength."
+                    rows={2}
+                    maxLength={500}
+                    className="mt-1.5 w-full rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm text-slate-200 resize-none"
+                  />
+                </label>
                 <label className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -578,6 +777,26 @@ export function CoralScanner() {
                     to save scans to your account and sync across devices.
                   </p>
                 )}
+                {user && (
+                  <label className="flex items-start gap-3 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={requestReview}
+                      onChange={(e) => setRequestReview(e.target.checked)}
+                      className="mt-1 accent-cyan-500"
+                    />
+                    <span className="text-sm text-left">
+                      <span className="font-medium text-cyan-200 flex items-center gap-1">
+                        <GraduationCap className="h-4 w-4" />
+                        Request educator review (optional)
+                      </span>
+                      <span className="text-slate-400 block text-xs mt-1">
+                        Flags this scan for your teacher to verify — useful for
+                        assignments where a human check matters.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={saveToMap}
@@ -602,9 +821,19 @@ export function CoralScanner() {
                     ? "Saved to your account, map, and research dashboard"
                     : "Saved on this device — sign in to sync to your account"}
                 </p>
+                {assignmentCompleteNote && (
+                  <p className="flex items-center gap-2 text-cyan-300 text-sm font-medium rounded-lg border border-cyan-500/30 bg-cyan-950/30 px-3 py-2">
+                    <ClipboardList className="h-4 w-4 shrink-0" />
+                    {assignmentCompleteNote}{" "}
+                    <Link href="/class" className="underline">
+                      View My Class
+                    </Link>
+                  </p>
+                )}
                 <p className="text-sm text-slate-400">
                   {locationName} · {lat?.toFixed(4)}, {lng?.toFixed(4)}
                 </p>
+                {reviewStatus !== "none" && <ReviewBadge status={reviewStatus} />}
                 <div className="flex gap-3 flex-wrap text-sm">
                   <Link href="/map" className="text-cyan-300 underline">
                     View on map
@@ -639,6 +868,7 @@ export function CoralScanner() {
           </article>
         )}
       </div>
+    </div>
     </div>
   );
 }

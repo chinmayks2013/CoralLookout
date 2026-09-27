@@ -17,7 +17,186 @@ import {
   Sparkles,
   ExternalLink,
   GraduationCap,
+  Handshake,
+  Calendar,
+  Mail,
+  Loader2,
 } from "lucide-react";
+
+const INTEREST_OPTIONS = [
+  "Research data access",
+  "School / district partnership",
+  "NGO / conservation partnership",
+  "Government or policy reporting",
+  "API / data integration",
+  "Sponsorship",
+  "Other",
+];
+
+interface PartnerAutoReply {
+  subject: string;
+  body: string;
+  calendarUrl: string | null;
+  staffMailto: string;
+}
+
+function PartnerInquiryForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [role, setRole] = useState("");
+  const [interest, setInterest] = useState(INTEREST_OPTIONS[0]);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [autoReply, setAutoReply] = useState<PartnerAutoReply | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim() || !email.trim()) {
+      setError("Please enter your name and email.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/partners/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          organization: organization.trim() || undefined,
+          role: role.trim() || undefined,
+          interest,
+          message: message.trim() || undefined,
+          source: "community-partner-form",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to submit inquiry");
+      setAutoReply(data.autoReply as PartnerAutoReply);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit inquiry");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (autoReply) {
+    return (
+      <article className="glass rounded-2xl p-8 border border-teal-500/30">
+        <h2 className="text-xl font-bold mb-2 flex items-center gap-2 text-teal-300">
+          <CheckCircle className="h-5 w-5" />
+          Inquiry received
+        </h2>
+        <p className="text-sm text-slate-400 mb-4">
+          {autoReply.subject} — here&apos;s a copy of what we&apos;ll email you.
+        </p>
+        <pre className="whitespace-pre-wrap rounded-lg bg-slate-950/60 border border-cyan-500/15 p-4 text-sm text-slate-300 font-sans leading-relaxed">
+          {autoReply.body}
+        </pre>
+        <div className="flex flex-wrap gap-3 mt-5">
+          {autoReply.calendarUrl && (
+            <a
+              href={autoReply.calendarUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-900"
+            >
+              <Calendar className="h-4 w-4" />
+              Book time now
+            </a>
+          )}
+          <a
+            href={autoReply.staffMailto}
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 px-5 py-2.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/10"
+          >
+            <Mail className="h-4 w-4" />
+            Email us directly
+          </a>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="glass rounded-2xl p-8 border border-teal-500/25">
+      <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+        <Handshake className="h-5 w-5 text-teal-400" />
+        Research & NGO partnership inquiry
+      </h2>
+      <p className="text-slate-400 mb-6 text-sm leading-relaxed">
+        Tell us about your organization and we&apos;ll follow up about data
+        exports, API access, and partnership options.
+      </p>
+      {error && (
+        <p className="mb-4 rounded-lg border border-red-500/30 bg-red-950/20 px-4 py-2 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+      <form onSubmit={(e) => void onSubmit(e)} className="grid gap-4 sm:grid-cols-2">
+        <input
+          type="text"
+          placeholder="Your name *"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
+        />
+        <input
+          type="email"
+          placeholder="Email *"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
+        />
+        <input
+          type="text"
+          placeholder="Organization"
+          value={organization}
+          onChange={(e) => setOrganization(e.target.value)}
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
+        />
+        <input
+          type="text"
+          placeholder="Role / title"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400"
+        />
+        <select
+          value={interest}
+          onChange={(e) => setInterest(e.target.value)}
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 sm:col-span-2 text-slate-300"
+        >
+          {INTEREST_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        <textarea
+          placeholder="Message (optional)"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          maxLength={800}
+          rows={4}
+          className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-4 py-3 text-sm focus:outline-none focus:border-cyan-400 sm:col-span-2 resize-y"
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="sm:col-span-2 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 py-3 font-semibold text-slate-900 disabled:opacity-60"
+        >
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {submitting ? "Sending…" : "Send inquiry"}
+        </button>
+      </form>
+    </article>
+  );
+}
 
 const REGIONS = [
   "North America",
@@ -107,7 +286,7 @@ export function CommunityView() {
           <p className="text-slate-300 leading-relaxed">
             {schoolPilot
               ? "Teachers: set up your chapter on the Teacher Dashboard. Students join with the class code on My Class after signing in."
-              : "Tell us about your organization in your bio — we’ll follow up about data exports, API access, and annual partnership options."}
+              : "Fill out the partnership form below — we'll follow up about data exports, API access, and annual partnership options."}
           </p>
           {schoolPilot && (
             <Link
@@ -128,6 +307,12 @@ export function CommunityView() {
         </aside>
       )}
 
+      {partnerInquiry && (
+        <section className="mb-12">
+          <PartnerInquiryForm />
+        </section>
+      )}
+
       {message && (
         <aside className="mb-6 glass rounded-xl p-4 border border-teal-500/30 text-teal-300 text-sm flex items-center gap-2">
           <CheckCircle className="h-4 w-4 shrink-0" />
@@ -140,6 +325,11 @@ export function CommunityView() {
         </aside>
       )}
 
+      {partnerInquiry && (
+        <p className="text-sm text-slate-500 mb-3">
+          Also set up your Coral Enthusiast profile below (optional):
+        </p>
+      )}
       <section className="grid gap-6 lg:grid-cols-3 mb-12">
         <article className="lg:col-span-2 glass rounded-2xl p-8">
           <h2 className="text-xl font-bold mb-2">

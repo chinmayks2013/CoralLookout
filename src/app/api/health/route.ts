@@ -1,25 +1,43 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthEnvStatus, getGalleryEnvStatus } from "@/lib/supabase/config";
+import { isStripeConfigured } from "@/lib/school/stripe";
+import { isSchoolDemoMode } from "@/lib/school/config";
 
 export async function GET() {
   const env = getGalleryEnvStatus();
   const auth = getAuthEnvStatus();
+  const stripeConfigured = isStripeConfigured();
+  const schoolDemoMode = isSchoolDemoMode();
+  const pipelineReady = Boolean(process.env.AI_VISION_PROVIDER?.trim());
+
   const result: {
+    ok: boolean;
     galleryReady: boolean;
     authReady: boolean;
+    stripeConfigured: boolean;
+    schoolDemoMode: boolean;
+    pipelineReady: boolean;
     missingEnv: string[];
     missingAuthEnv: string[];
     tablesOk: boolean;
     storageOk: boolean;
+    uptime: number;
+    timestamp: string;
     error?: string;
   } = {
+    ok: env.configured,
     galleryReady: false,
     authReady: auth.configured,
+    stripeConfigured,
+    schoolDemoMode,
+    pipelineReady,
     missingEnv: env.missing,
     missingAuthEnv: auth.missing,
     tablesOk: false,
     storageOk: false,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
   };
 
   if (!env.configured) {
@@ -49,6 +67,7 @@ export async function GET() {
   }
 
   result.galleryReady = result.tablesOk && result.storageOk && env.configured;
+  result.ok = env.configured && result.tablesOk;
 
   return NextResponse.json({
     ...result,

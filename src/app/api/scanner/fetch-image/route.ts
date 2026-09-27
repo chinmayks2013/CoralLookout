@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { checkRateLimitForRequest } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 12 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15_000;
+// Demo-grade protection — see src/lib/api/rate-limit.ts.
+const RATE_LIMIT = { windowMs: 60_000, max: 20, scope: "scanner-fetch-image" };
 
 function isBlockedHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
@@ -26,6 +29,14 @@ function isBlockedHost(hostname: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const limit = checkRateLimitForRequest(request, RATE_LIMIT);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many image fetch requests. Please slow down and try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
   let body: { url?: unknown };
   try {
     body = (await request.json()) as { url?: unknown };

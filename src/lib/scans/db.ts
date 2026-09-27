@@ -37,6 +37,9 @@ export async function insertUserScan(
     lat: number;
     lng: number;
     analysis: ScanResult;
+    contributorName?: string;
+    notes?: string;
+    modelVersion?: string;
   }
 ): Promise<UserScanRow> {
   const { data, error } = await supabase
@@ -51,6 +54,12 @@ export async function insertUserScan(
       label: input.analysis.label,
       confidence: input.analysis.confidence,
       analysis: input.analysis,
+      // Columns added in supabase/migrations/008_sales_sprint.sql; only set
+      // when provided so deployments that haven't run that migration yet
+      // still work for the base insert.
+      ...(input.contributorName ? { contributor_name: input.contributorName } : {}),
+      ...(input.notes ? { notes: input.notes } : {}),
+      ...(input.modelVersion ? { model_version: input.modelVersion } : {}),
     })
     .select()
     .single();

@@ -11,6 +11,8 @@ export interface PricingTier {
   name: string;
   price: string;
   priceDetail: string;
+  annualPrice?: string;
+  annualPriceDetail?: string;
   description: string;
   audience: string;
   features: string[];
@@ -58,6 +60,8 @@ export const PRICING_TIERS: PricingTier[] = [
     name: "School Chapter",
     price: "$49",
     priceDetail: "/ month per school",
+    annualPrice: "$490",
+    annualPriceDetail: "/ year founding (prepaid)",
     description:
       "Teachers run structured reef programs with dashboards, exports, and moderated classroom spaces.",
     audience: "K–12 schools, clubs & universities",
@@ -65,11 +69,12 @@ export const PRICING_TIERS: PricingTier[] = [
       "Everything in Coral Enthusiast",
       "Teacher admin dashboard & class roster",
       "Bulk student onboarding & school branding",
-      "Assignment-ready exports (CSV & reports)",
+      "Assignment-ready exports (CSV & print reports)",
       "Private chapter leaderboard & progress",
+      "Annual prepaid option for procurement",
       "Priority email support",
     ],
-    cta: "Subscribe — $49/mo",
+    cta: "Start school chapter",
     href: "/teacher",
     highlighted: true,
   },
@@ -86,6 +91,7 @@ export const PRICING_TIERS: PricingTier[] = [
       "API access to upload & health trends",
       "Sponsored challenges & map layers",
       "White-label reports for grants & donors",
+      "Path to verified datasets & government reporting",
       "Dedicated onboarding & SLA",
     ],
     cta: "Partner with us",
@@ -150,19 +156,29 @@ export const BUSINESS_FAQS: BusinessFaq[] = [
       "Our mission is the world's largest student-driven reef network. Paywalls would exclude the communities most affected by reef loss. Schools and partners subsidize free access.",
   },
   {
-    question: "What do schools get for $49/month?",
+    question: "What do schools get for $49/month or $490/year?",
     answer:
-      "A managed chapter for up to ~200 students: teacher dashboard, exports for grading, private leaderboards, and support. That's under $0.25 per student per month at full capacity.",
+      "A managed chapter for up to ~200 students: teacher dashboard, exports for grading, private leaderboards, assignments, and support. Annual prepaid is designed for school procurement cycles (~2 months free vs monthly).",
+  },
+  {
+    question: "How does procurement work?",
+    answer:
+      "Most schools pay by card via Stripe on the teacher dashboard. For POs, wire transfers, or district procurement, email schools@corallookout.org and we will issue an invoice for the founding annual plan.",
+  },
+  {
+    question: "How is student privacy handled?",
+    answer:
+      "Students control what appears on public gallery posts. Chapter rosters are for classroom management. See /privacy for a plain-language student-data summary written for school procurement.",
+  },
+  {
+    question: "What does a pilot include?",
+    answer:
+      "Join codes, printable student quick start, AI scanner with honest methodology labels, class map filters (including Puerto Rico / Caribbean cohorts), CSV exports, and teacher onboarding support. Custom research exports are available for NGO partners.",
   },
   {
     question: "How do coral donations work financially?",
     answer:
       "Corals are in-app engagement credits, not cryptocurrency. They reward participation; they are not sold for cash. Optional future sponsor pools could fund real restoration grants.",
-  },
-  {
-    question: "When do paid tiers launch?",
-    answer:
-      "Coral Enthusiast is live now. School and NGO tiers are pilot programs—we onboard partners manually while we finalize billing and dashboards.",
   },
 ];
 

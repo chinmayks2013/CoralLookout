@@ -36,8 +36,11 @@ interface PlatformContextValue {
       shareToGallery?: boolean;
       imageDataUrl?: string;
       imageRightsConfirmed?: boolean;
+      notes?: string;
+      modelVersion?: string;
     }
   ) => Promise<{
+    scanId: string;
     galleryPublished: boolean;
     cloudSaved: boolean;
     galleryError?: string;
@@ -91,6 +94,8 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         shareToGallery?: boolean;
         imageDataUrl?: string;
         imageRightsConfirmed?: boolean;
+        notes?: string;
+        modelVersion?: string;
       }
     ) => {
       const scanId = crypto.randomUUID();
@@ -110,6 +115,9 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
           lat: location.lat,
           lng: location.lng,
           analysis: result,
+          contributorName: state.profile?.name,
+          notes: options?.notes,
+          modelVersion: options?.modelVersion,
         });
         cloudSaved = cloud.saved;
         cloudError = cloud.error;
@@ -124,7 +132,7 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         !state.profile?.name?.trim() ||
         !state.userId
       ) {
-        return { galleryPublished: false, cloudSaved, cloudError };
+        return { scanId, galleryPublished: false, cloudSaved, cloudError };
       }
 
       try {
@@ -142,9 +150,10 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
           imageRightsConfirmed: true,
         });
         dispatch({ type: "ADD_CORALS", amount: 15 });
-        return { galleryPublished: true, cloudSaved, cloudError };
+        return { scanId, galleryPublished: true, cloudSaved, cloudError };
       } catch (e) {
         return {
+          scanId,
           galleryPublished: false,
           cloudSaved,
           cloudError,

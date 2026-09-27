@@ -165,14 +165,20 @@ export function GalleryView() {
               </article>
             ) : sorted.length === 0 ? (
               <article className="p-8 text-center text-slate-400">
-                <p>No reef scans yet. Be the first to share one.</p>
-                <Link href="/scanner" className="text-cyan-300 underline mt-2 inline-block">
-                  Analyze a reef
-                </Link>
-                <span className="text-slate-500 mx-2">·</span>
-                <Link href="/forum" className="text-violet-300 underline mt-2 inline-block">
-                  Coral forum
-                </Link>
+                <p className="mb-3">No reef scans yet. Be the first to share one.</p>
+                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                  <Link href="/scanner" className="text-cyan-300 underline inline-block">
+                    Scan a reef
+                  </Link>
+                  <span className="text-slate-500">·</span>
+                  <Link href="/class" className="text-teal-300 underline inline-block">
+                    Join a class
+                  </Link>
+                  <span className="text-slate-500">·</span>
+                  <Link href="/forum" className="text-violet-300 underline inline-block">
+                    Coral forum
+                  </Link>
+                </div>
               </article>
             ) : (
               <>

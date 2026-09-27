@@ -20,6 +20,8 @@ export interface SchoolChapter {
   subscriptionCurrentPeriodEnd: string | null;
   stripeCustomerId: string | null;
   createdAt: string;
+  cohort: string | null;
+  region: string | null;
 }
 
 export interface SchoolRosterMember {

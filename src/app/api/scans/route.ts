@@ -51,6 +51,9 @@ export async function POST(request: Request) {
       lat: number;
       lng: number;
       analysis: ScanResult;
+      contributorName?: string;
+      notes?: string;
+      modelVersion?: string;
     };
 
     if (
@@ -70,6 +73,9 @@ export async function POST(request: Request) {
       lat: body.lat,
       lng: body.lng,
       analysis: body.analysis,
+      contributorName: body.contributorName?.trim() || undefined,
+      notes: body.notes?.trim() || undefined,
+      modelVersion: body.modelVersion?.trim() || undefined,
     });
 
     return NextResponse.json({ scan: rowToStoredScan(row) });

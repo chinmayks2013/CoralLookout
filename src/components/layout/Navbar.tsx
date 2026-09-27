@@ -21,6 +21,9 @@ const moreLinks = [
   { href: "/compete", label: "Compete" },
   { href: "/community", label: "Community" },
   { href: "/teacher", label: "Teachers" },
+  { href: "/schools", label: "Schools" },
+  { href: "/pilot", label: "Pilot" },
+  { href: "/vision", label: "Vision" },
   { href: "/business", label: "Partners" },
   { href: "/founder", label: "Founder" },
 ];
@@ -29,15 +32,19 @@ function NavLink({
   href,
   label,
   pathname,
+  prefetch = true,
 }: {
   href: string;
   label: string;
   pathname: string;
+  /** Primary nav keeps prefetch; secondary/more links disable it under load. */
+  prefetch?: boolean;
 }) {
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       className={`whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-medium transition-colors lg:px-2.5 lg:text-sm ${
         active
           ? "bg-cyan-500/20 text-cyan-300"
@@ -149,6 +156,7 @@ export function Navbar() {
                   <Link
                     key={link.href}
                     href={link.href}
+                    prefetch={false}
                     onClick={() => setMoreOpen(false)}
                     className={`block px-3 py-2 text-sm ${
                       pathname === link.href
@@ -170,6 +178,7 @@ export function Navbar() {
               <div className="hidden sm:flex items-center gap-2">
                 <Link
                   href="/community"
+                  prefetch={false}
                   className="inline-flex items-center gap-1 rounded-full border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/10 max-w-[8rem] truncate"
                   title={state.profile?.name ?? user?.email ?? "Account"}
                 >
@@ -190,6 +199,7 @@ export function Navbar() {
             ) : (
               <Link
                 href={`/login?next=${encodeURIComponent(pathname)}`}
+                prefetch={false}
                 className="hidden sm:inline-flex rounded-full border border-cyan-500/40 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/10"
               >
                 Sign in
@@ -252,6 +262,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch={false}
                 onClick={() => setOpen(false)}
                 className={mobileLinkClass(link.href)}
               >
@@ -276,6 +287,7 @@ export function Navbar() {
           {!authLoading && !signedIn && (
             <Link
               href={`/login?next=${encodeURIComponent(pathname)}`}
+              prefetch={false}
               onClick={() => setOpen(false)}
               className="mt-2 block rounded-full border border-cyan-500/40 px-4 py-2.5 text-center text-sm font-semibold text-cyan-300"
             >

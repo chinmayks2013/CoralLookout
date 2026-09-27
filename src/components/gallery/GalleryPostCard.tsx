@@ -15,6 +15,7 @@ import { GalleryCommentsList } from "@/components/gallery/GalleryCommentsList";
 import { GalleryCommentInput } from "@/components/gallery/GalleryCommentInput";
 import { DonateButton } from "@/components/gallery/DonateButton";
 import { getHealthColor } from "@/lib/scanner/analyze";
+import { OptimizedCoralImage } from "@/components/ui/OptimizedCoralImage";
 
 interface GalleryPostCardProps {
   post: GalleryPost;
@@ -87,13 +88,13 @@ export function GalleryPostCard({
             <button
               type="button"
               onClick={onOpenPost}
-              className="shrink-0 w-24 sm:w-32 h-20 sm:h-24 rounded overflow-hidden border border-violet-500/25 hover:border-violet-500/50"
+              className="relative shrink-0 w-24 sm:w-32 h-20 sm:h-24 rounded overflow-hidden border border-violet-500/25 hover:border-violet-500/50"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <OptimizedCoralImage
                 src={post.imageDataUrl}
                 alt={post.locationName}
-                className="w-full h-full object-cover"
+                className="object-cover"
+                sizes="(max-width: 640px) 96px, 128px"
               />
             </button>
           ) : discussion ? (
@@ -105,13 +106,13 @@ export function GalleryPostCard({
             <button
               type="button"
               onClick={onOpenPost}
-              className="shrink-0 w-24 sm:w-32 h-20 sm:h-24 rounded overflow-hidden border border-cyan-500/15 hover:border-cyan-500/40"
+              className="relative shrink-0 w-24 sm:w-32 h-20 sm:h-24 rounded overflow-hidden border border-cyan-500/15 hover:border-cyan-500/40"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <OptimizedCoralImage
                 src={post.imageDataUrl}
                 alt={post.locationName}
-                className="w-full h-full object-cover"
+                className="object-cover"
+                sizes="(max-width: 640px) 96px, 128px"
               />
             </button>
           ) : null}

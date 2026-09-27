@@ -136,6 +136,7 @@ export function Features() {
             >
               <Link
                 href={feature.href}
+                prefetch={false}
                 className="group block h-full glass rounded-2xl p-6 hover:border-cyan-400/40 transition-all hover:-translate-y-1"
               >
                 <div

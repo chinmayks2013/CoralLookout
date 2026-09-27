@@ -18,6 +18,7 @@ import {
   BUSINESS_FAQS,
   PILOT_METRICS,
 } from "@/lib/data/business-model";
+import { BOOK_PILOT_MAILTO } from "@/lib/data/cohorts";
 
 export function BusinessModelView() {
   return (
@@ -67,10 +68,17 @@ export function BusinessModelView() {
               {tier.audience}
             </p>
             <h3 className="text-xl font-bold mt-1">{tier.name}</h3>
-            <p className="mt-2 flex items-baseline gap-1">
+            <p className="mt-2 flex items-baseline gap-1 flex-wrap">
               <span className="text-3xl font-bold text-white">{tier.price}</span>
               <span className="text-sm text-slate-400">{tier.priceDetail}</span>
             </p>
+            {tier.annualPrice && (
+              <p className="mt-1 text-sm text-teal-300/90">
+                or{" "}
+                <span className="font-semibold text-teal-200">{tier.annualPrice}</span>{" "}
+                {tier.annualPriceDetail}
+              </p>
+            )}
             <p className="text-sm text-slate-400 mt-3 leading-relaxed">
               {tier.description}
             </p>
@@ -155,7 +163,17 @@ export function BusinessModelView() {
             >
               <h3 className="font-medium text-cyan-200">{faq.question}</h3>
               <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                {faq.answer}
+                {faq.answer.includes("/privacy") ? (
+                  <>
+                    {faq.answer.split("/privacy")[0]}
+                    <Link href="/privacy" className="text-cyan-300 underline">
+                      /privacy
+                    </Link>
+                    {faq.answer.split("/privacy")[1]}
+                  </>
+                ) : (
+                  faq.answer
+                )}
               </p>
             </li>
           ))}
@@ -165,8 +183,9 @@ export function BusinessModelView() {
       <article className="rounded-2xl bg-gradient-to-r from-cyan-600/30 via-teal-600/20 to-violet-600/30 border border-cyan-500/30 p-8 sm:p-10 text-center">
         <h2 className="text-2xl font-bold mb-3">Pilot a school chapter</h2>
         <p className="text-slate-300 max-w-xl mx-auto mb-6 text-sm leading-relaxed">
-          Teachers can subscribe at $49/month on the dashboard. Early schools can
-          still reach out for founding-partner pricing during beta.
+          Subscribe at $49/month or $490 founding annual on the teacher
+          dashboard. Book a pilot for Puerto Rico / Caribbean classrooms, or
+          reach out for university and NGO custom plans.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Link
@@ -174,15 +193,33 @@ export function BusinessModelView() {
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-slate-900"
           >
             <GraduationCap className="h-4 w-4" />
-            School pilot — $49/mo
+            School chapter — $49/mo or $490/yr
             <ArrowRight className="h-4 w-4" />
+          </Link>
+          <a
+            href={BOOK_PILOT_MAILTO}
+            className="inline-flex items-center gap-2 rounded-full border border-teal-400/40 px-6 py-2.5 text-sm font-medium text-teal-200 hover:bg-teal-500/10"
+          >
+            <Mail className="h-4 w-4" />
+            Book a pilot
+          </a>
+          <Link
+            href="/schools"
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 px-6 py-2.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/10"
+          >
+            For schools
           </Link>
           <Link
             href="/community?partner=inquiry"
             className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 px-6 py-2.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/10"
           >
-            <Mail className="h-4 w-4" />
             NGO / research inquiry
+          </Link>
+          <Link
+            href="/founder"
+            className="inline-flex items-center gap-2 rounded-full border border-violet-500/40 px-6 py-2.5 text-sm font-medium text-violet-200 hover:bg-violet-500/10"
+          >
+            Contact founder
           </Link>
         </div>
       </article>

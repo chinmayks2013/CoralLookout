@@ -24,6 +24,7 @@ import type { CreatorProfile } from "@/lib/gallery/types";
 import { getHealthColor } from "@/lib/scanner/analyze";
 import { isDiscussionPost } from "@/lib/gallery/post-helpers";
 import { safeNumber } from "@/lib/platform/numbers";
+import { OptimizedCoralImage } from "@/components/ui/OptimizedCoralImage";
 
 function profileInitials(name: string): string {
   return name
@@ -258,12 +259,14 @@ export function ProfileView({ userId }: { userId: string }) {
                   className="glass rounded-xl overflow-hidden block hover:ring-1 hover:ring-cyan-500/40 transition-shadow"
                 >
                   {post.imageDataUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={post.imageDataUrl}
-                      alt={post.locationName}
-                      className="w-full h-36 object-cover"
-                    />
+                    <div className="relative w-full h-36">
+                      <OptimizedCoralImage
+                        src={post.imageDataUrl}
+                        alt={post.locationName}
+                        className="object-cover"
+                        sizes="(max-width: 640px) 50vw, 33vw"
+                      />
+                    </div>
                   ) : (
                     <div className="h-36 bg-slate-800/50" />
                   )}

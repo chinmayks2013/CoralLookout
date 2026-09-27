@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { fetchChapterById } from "@/lib/school/db";
-import { getAppBaseUrl, getStripe, isStripeConfigured } from "@/lib/school/stripe";
+import {
+  getAppBaseUrl,
+  getStripe,
+  isStripeConfigured,
+  priceIdForInterval,
+  type BillingInterval,
+} from "@/lib/school/stripe";
 import { isGalleryCloudEnabled, GALLERY_SETUP_MESSAGE } from "@/lib/supabase/config";
 
 export async function POST(request: Request) {
@@ -23,6 +29,7 @@ export async function POST(request: Request) {
       chapterId: string;
       teacherUserId: string;
       teacherEmail: string;
+      billingInterval?: BillingInterval;
     };
 
     if (!body.chapterId || !body.teacherUserId || !body.teacherEmail) {
@@ -34,9 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
+    const interval: BillingInterval = body.billingInterval === "year" ? "year" : "month";
     const stripe = getStripe();
     const baseUrl = getAppBaseUrl();
-    const priceId = process.env.STRIPE_SCHOOL_PRICE_ID!.trim();
+    const priceId = priceIdForInterval(interval);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -47,11 +55,13 @@ export async function POST(request: Request) {
       metadata: {
         chapterId: chapter.id,
         teacherUserId: body.teacherUserId,
+        billingInterval: interval,
       },
       subscription_data: {
         metadata: {
           chapterId: chapter.id,
           teacherUserId: body.teacherUserId,
+          billingInterval: interval,
         },
       },
     });

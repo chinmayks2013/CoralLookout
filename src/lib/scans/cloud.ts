@@ -7,6 +7,9 @@ export async function saveScanToCloud(input: {
   lat: number;
   lng: number;
   analysis: ScanResult;
+  contributorName?: string;
+  notes?: string;
+  modelVersion?: string;
 }): Promise<{ saved: boolean; error?: string }> {
   const res = await fetch("/api/scans", {
     method: "POST",

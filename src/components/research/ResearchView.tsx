@@ -5,13 +5,15 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { usePlatform } from "@/context/PlatformContext";
 import { getResearchStats } from "@/lib/platform/research-stats";
 import { getHealthLabel } from "@/lib/scanner/analyze";
-import { TrendingUp, Image, BookOpen, MapPin } from "lucide-react";
+import { TrendingUp, Image, BookOpen, MapPin, Download, FileJson, Scale } from "lucide-react";
 import { WorldResearchSection } from "@/components/research/WorldResearchSection";
+import { getWorldResearchSummary } from "@/lib/data/world-research";
 
 export function ResearchView() {
   const { state, hydrated } = usePlatform();
   const stats = getResearchStats(state);
   const maxTrend = Math.max(...stats.monthlyTrend.map((d) => d.value), 1);
+  const worldSummary = getWorldResearchSummary();
 
   if (!hydrated) {
     return (
@@ -147,6 +149,61 @@ export function ResearchView() {
           </article>
         </section>
       )}
+
+      <section className="glass rounded-2xl p-6 mb-8">
+        <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
+          <Download className="h-5 w-5 text-cyan-400" />
+          Export research data
+        </h2>
+        <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+          Public, anonymized export of platform scan data (no user IDs) — for
+          researchers and partners building their own analysis.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/api/research/export?format=csv"
+            download
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 px-5 py-2.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/10"
+          >
+            <Download className="h-4 w-4" />
+            Download CSV
+          </a>
+          <a
+            href="/api/research/export?format=geojson"
+            download
+            className="inline-flex items-center gap-2 rounded-full border border-violet-500/40 px-5 py-2.5 text-sm font-medium text-violet-200 hover:bg-violet-500/10"
+          >
+            <FileJson className="h-4 w-4" />
+            Download GeoJSON
+          </a>
+        </div>
+      </section>
+
+      <section className="glass rounded-2xl p-6 mb-8 border border-amber-500/15">
+        <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
+          <Scale className="h-5 w-5 text-amber-300" />
+          Chapter vs. global demo sites
+        </h2>
+        <p className="text-sm text-slate-400 leading-relaxed mb-4">
+          A simple, honest count comparison — not a scientific benchmark or ML
+          claim. It shows scale, nothing more.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-cyan-500/15 bg-slate-950/30 p-4">
+            <p className="text-2xl font-bold text-cyan-300">{stats.totalUploads}</p>
+            <p className="text-sm text-slate-400 mt-1">
+              Scans logged on this device{stats.uniqueSites > 0 ? ` across ${stats.uniqueSites} unique site${stats.uniqueSites === 1 ? "" : "s"}` : ""}
+            </p>
+          </div>
+          <div className="rounded-xl border border-violet-500/15 bg-slate-950/30 p-4">
+            <p className="text-2xl font-bold text-violet-300">{worldSummary.siteCount}</p>
+            <p className="text-sm text-slate-400 mt-1">
+              NOAA-monitored reef provinces shown as global demo comparison
+              sites (see below)
+            </p>
+          </div>
+        </div>
+      </section>
 
       <WorldResearchSection />
     </section>

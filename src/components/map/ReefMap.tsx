@@ -2,24 +2,45 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/context/PlatformContext";
 import { getMapCenter, scansToMarkers } from "@/lib/platform/scans-to-markers";
-import { RESEARCH_SITES } from "@/lib/data/world-research";
+import {
+  ALERT_COLORS,
+  ALERT_LABELS,
+  type ResearchSite,
+} from "@/lib/data/world-research";
 import { getHealthColor, getHealthLabel } from "@/lib/scanner/analyze";
-import { ALERT_COLORS, ALERT_LABELS } from "@/lib/data/world-research";
 import { MapLegend } from "@/components/map/MapLegend";
-import { MapPin, Satellite } from "lucide-react";
+import { getCohort } from "@/lib/data/cohorts";
+import { MapPin, Satellite, Filter, Check, Copy } from "lucide-react";
 
 type LayerMode = "both" | "research" | "yours";
 
 export function ReefMap() {
   const { state, hydrated } = usePlatform();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [layerMode, setLayerMode] = useState<LayerMode>("both");
   const [showNoaa, setShowNoaa] = useState(true);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [researchSites, setResearchSites] = useState<ResearchSite[]>([]);
   const [MapComponent, setMapComponent] = useState<
     typeof import("./ReefMapInner").ReefMapInner | null
   >(null);
+
+  const cohortParam = searchParams.get("cohort");
+  const chapterIdParam = searchParams.get("chapterId");
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const activeCohort = getCohort(cohortParam);
+  const hasCohortFilter = Boolean(cohortParam);
+
+  function copyShareableLink() {
+    void navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
 
   const userMarkers = useMemo(
     () => scansToMarkers(state.scans),
@@ -33,9 +54,9 @@ export function ReefMap() {
     const pts: [number, number][] = [];
     if (showUser) userMarkers.forEach((m) => pts.push([m.lat, m.lng]));
     if (showResearch)
-      RESEARCH_SITES.forEach((s) => pts.push([s.lat, s.lng]));
+      researchSites.forEach((s) => pts.push([s.lat, s.lng]));
     return pts;
-  }, [showUser, showResearch, userMarkers]);
+  }, [showUser, showResearch, userMarkers, researchSites]);
 
   const center: [number, number] =
     allForCenter.length > 0
@@ -55,17 +76,62 @@ export function ReefMap() {
     });
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    // Edge-cached JSON (s-maxage=86400) — avoids bundling research sites into every map visit.
+    fetch("/api/map/research-sites")
+      .then((res) => res.json())
+      .then((data: { sites?: ResearchSite[] }) => {
+        if (!cancelled && Array.isArray(data.sites)) {
+          setResearchSites(data.sites);
+        }
+      })
+      .catch(() => {
+        /* keep empty; map still shows user pins + NOAA tiles */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!hydrated) {
     return (
       <p className="text-center text-slate-400 py-12">Loading map…</p>
     );
   }
 
-  const sidebarSites = showResearch ? RESEARCH_SITES : [];
+  const sidebarSites = showResearch ? researchSites : [];
   const sidebarUsers = showUser ? userMarkers : [];
 
   return (
     <div className="space-y-6">
+      {hasCohortFilter && (
+        <aside className="rounded-xl border border-violet-500/30 bg-violet-950/25 p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-violet-100 flex items-start gap-2">
+            <Filter className="h-4 w-4 text-violet-300 shrink-0 mt-0.5" />
+            <span>
+              <span className="font-semibold">
+                {activeCohort?.label ?? cohortParam} cohort filter active
+              </span>
+              {" — "}
+              markers below aren&apos;t tagged with cohort yet, so this is a
+              pinned, shareable view for coordinating with a specific class
+              (e.g. Courtney&apos;s class in Puerto Rico).
+              {chapterIdParam && ` Chapter: ${chapterIdParam}.`}
+              {fromParam && toParam && ` Date range: ${fromParam} → ${toParam}.`}
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={copyShareableLink}
+            className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/40 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-500/10 shrink-0"
+          >
+            {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {linkCopied ? "Link copied" : "Copy shareable link"}
+          </button>
+        </aside>
+      )}
+
       <aside className="glass rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <p className="text-sm text-slate-300 flex items-center gap-2">
           <Satellite className="h-4 w-4 text-cyan-400 shrink-0" />
@@ -111,7 +177,7 @@ export function ReefMap() {
           {mounted && MapComponent ? (
             <MapComponent
               userMarkers={userMarkers}
-              researchSites={RESEARCH_SITES}
+              researchSites={researchSites}
               center={center}
               zoom={zoom}
               showNoaaLayer={showNoaa && showResearch}

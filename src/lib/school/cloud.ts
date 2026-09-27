@@ -6,7 +6,12 @@ import type {
 
 export async function fetchTeacherChapter(
   teacherUserId: string
-): Promise<{ chapter: SchoolChapter | null; demoMode?: boolean; error?: string }> {
+): Promise<{
+  chapter: SchoolChapter | null;
+  demoMode?: boolean;
+  annualBillingAvailable?: boolean;
+  error?: string;
+}> {
   const res = await fetch(
     `/api/school/chapter?teacherUserId=${encodeURIComponent(teacherUserId)}`,
     { cache: "no-store" }
@@ -16,6 +21,7 @@ export async function fetchTeacherChapter(
   return {
     chapter: data.chapter as SchoolChapter | null,
     demoMode: Boolean(data.demoMode),
+    annualBillingAvailable: Boolean(data.annualBillingAvailable),
   };
 }
 
@@ -44,6 +50,8 @@ export async function updateChapterBranding(input: {
   schoolName?: string;
   brandingTagline?: string | null;
   brandingAccent?: string;
+  cohort?: string | null;
+  region?: string | null;
 }): Promise<SchoolChapter> {
   const res = await fetch("/api/school/chapter", {
     method: "PATCH",
@@ -59,6 +67,7 @@ export async function startSchoolCheckout(input: {
   chapterId: string;
   teacherUserId: string;
   teacherEmail: string;
+  billingInterval?: "month" | "year";
 }): Promise<string> {
   const res = await fetch("/api/school/checkout", {
     method: "POST",
@@ -194,6 +203,148 @@ export function getChapterExportUrl(
   return `/api/school/export?chapterId=${encodeURIComponent(chapterId)}&teacherUserId=${encodeURIComponent(teacherUserId)}`;
 }
 
+export interface SchoolAssignmentDto {
+  id: string;
+  chapterId: string;
+  title: string;
+  description: string | null;
+  requiresScan: boolean;
+  requiresPin: boolean;
+  dueAt: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export async function fetchAssignments(
+  chapterId: string
+): Promise<SchoolAssignmentDto[]> {
+  const res = await fetch(
+    `/api/school/assignments?chapterId=${encodeURIComponent(chapterId)}`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load assignments");
+  return data.assignments as SchoolAssignmentDto[];
+}
+
+export async function createAssignment(input: {
+  chapterId: string;
+  teacherUserId: string;
+  title: string;
+  description?: string;
+  requiresScan?: boolean;
+  requiresPin?: boolean;
+  dueAt?: string | null;
+}): Promise<SchoolAssignmentDto> {
+  const res = await fetch("/api/school/assignments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to create assignment");
+  return data.assignment as SchoolAssignmentDto;
+}
+
+export interface AssignmentCompletionDto {
+  id: string;
+  assignmentId: string;
+  userId: string;
+  scanId: string | null;
+  completedAt: string;
+}
+
+export async function fetchAssignment(
+  assignmentId: string
+): Promise<SchoolAssignmentDto> {
+  const res = await fetch(
+    `/api/school/assignments?assignmentId=${encodeURIComponent(assignmentId)}`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load assignment");
+  return data.assignment as SchoolAssignmentDto;
+}
+
+export async function fetchAssignmentsWithCompletions(chapterId: string): Promise<{
+  assignments: SchoolAssignmentDto[];
+  completions: AssignmentCompletionDto[];
+}> {
+  const res = await fetch(
+    `/api/school/assignments?chapterId=${encodeURIComponent(chapterId)}&includeCompletions=1`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load assignments");
+  return {
+    assignments: data.assignments as SchoolAssignmentDto[],
+    completions: (data.completions ?? []) as AssignmentCompletionDto[],
+  };
+}
+
+export async function fetchAssignmentCompletions(
+  assignmentId: string
+): Promise<AssignmentCompletionDto[]> {
+  const res = await fetch(
+    `/api/school/assignments/complete?assignmentId=${encodeURIComponent(assignmentId)}`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load completions");
+  return data.completions as AssignmentCompletionDto[];
+}
+
+export async function completeAssignment(input: {
+  assignmentId: string;
+  userId: string;
+  scanId?: string;
+}): Promise<AssignmentCompletionDto> {
+  const res = await fetch("/api/school/assignments/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to mark complete");
+  return data.completion as AssignmentCompletionDto;
+}
+
+export interface CoTeacherDto {
+  id: string;
+  chapterId: string;
+  userId: string;
+  displayName: string;
+  email: string | null;
+  role: "owner" | "co_teacher" | "ta";
+  createdAt: string;
+}
+
+export async function fetchCoTeachers(chapterId: string): Promise<CoTeacherDto[]> {
+  const res = await fetch(
+    `/api/school/teachers?chapterId=${encodeURIComponent(chapterId)}`,
+    { cache: "no-store" }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to load co-teachers");
+  return data.teachers as CoTeacherDto[];
+}
+
+export async function inviteCoTeacher(input: {
+  chapterId: string;
+  teacherUserId: string;
+  displayName: string;
+  email?: string;
+}): Promise<CoTeacherDto> {
+  const res = await fetch("/api/school/teachers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Failed to invite co-teacher");
+  return data.teacher as CoTeacherDto;
+}
+
 export interface StudentClassDashboard {
   enrolled: boolean;
   classActive?: boolean;
@@ -202,6 +353,8 @@ export interface StudentClassDashboard {
   leaderboard?: ChapterLeaderboardEntry[];
   myRank?: number;
   myStats?: ChapterLeaderboardEntry | null;
+  assignments?: SchoolAssignmentDto[];
+  myCompletions?: AssignmentCompletionDto[];
 }
 
 export async function fetchStudentClass(

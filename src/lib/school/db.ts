@@ -19,6 +19,10 @@ import type {
   SchoolRosterMember,
   SubscriptionStatus,
 } from "./types";
+import type {
+  AssignmentCompletion,
+  SchoolAssignment,
+} from "./assignments";
 
 interface ChapterRow {
   id: string;
@@ -35,6 +39,8 @@ interface ChapterRow {
   subscription_current_period_end: string | null;
   created_at: string;
   updated_at: string;
+  cohort: string | null;
+  region: string | null;
 }
 
 interface RosterRow {
@@ -62,6 +68,8 @@ function rowToChapter(row: ChapterRow): SchoolChapter {
     subscriptionCurrentPeriodEnd: row.subscription_current_period_end,
     stripeCustomerId: row.stripe_customer_id,
     createdAt: row.created_at,
+    cohort: row.cohort ?? null,
+    region: row.region ?? null,
   };
 }
 
@@ -132,6 +140,8 @@ export async function createSchoolChapter(input: {
   teacherName: string;
   teacherEmail: string;
   schoolName: string;
+  cohort?: string | null;
+  region?: string | null;
 }): Promise<SchoolChapter> {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase not configured");
@@ -152,6 +162,8 @@ export async function createSchoolChapter(input: {
         school_name: input.schoolName.trim(),
         join_code: joinCode,
         subscription_status: subscriptionStatus,
+        cohort: input.cohort?.trim() || null,
+        region: input.region?.trim() || null,
       })
       .select("*")
       .single();
@@ -200,6 +212,36 @@ export async function updateChapterBranding(input: {
   const { data, error } = await supabase
     .from("school_chapters")
     .update(payload)
+    .eq("id", input.chapterId)
+    .eq("teacher_user_id", input.teacherUserId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return rowToChapter(data as ChapterRow);
+}
+
+export async function updateChapterCohort(input: {
+  chapterId: string;
+  teacherUserId: string;
+  cohort: string | null;
+  region: string | null;
+}): Promise<SchoolChapter> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase not configured");
+
+  const chapter = await fetchChapterByTeacherId(input.teacherUserId);
+  if (!chapter || chapter.id !== input.chapterId) {
+    throw new Error("Chapter not found or access denied");
+  }
+
+  const { data, error } = await supabase
+    .from("school_chapters")
+    .update({
+      cohort: input.cohort?.trim() || null,
+      region: input.region?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", input.chapterId)
     .eq("teacher_user_id", input.teacherUserId)
     .select("*")
@@ -433,6 +475,8 @@ export async function fetchStudentClassDashboard(userId: string): Promise<{
   leaderboard: ChapterLeaderboardEntry[];
   myRank: number;
   myStats: ChapterLeaderboardEntry | null;
+  assignments: SchoolAssignment[];
+  myCompletions: AssignmentCompletion[];
 } | null> {
   const membership = await fetchStudentChapter(userId);
   if (!membership) return null;
@@ -446,12 +490,21 @@ export async function fetchStudentClassDashboard(userId: string): Promise<{
       ? 0
       : leaderboard.findIndex((e) => e.userId === userId) + 1;
 
+  const { listAssignments, listUserCompletions } = await import("./assignments");
+  const assignments = await listAssignments(membership.chapter.id);
+  const myCompletions = await listUserCompletions(
+    userId,
+    assignments.map((a) => a.id)
+  );
+
   return {
     chapter: membership.chapter,
     classmates,
     leaderboard,
     myRank,
     myStats,
+    assignments,
+    myCompletions,
   };
 }
 
@@ -560,14 +613,23 @@ export async function fetchChapterLeaderboard(
   return buildLeaderboardFromPosts(posts, memberMap);
 }
 
+function escapeCsvValue(v: string): string {
+  if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
 export function buildChapterExportCsv(
   roster: SchoolRosterMember[],
   leaderboard: ChapterLeaderboardEntry[],
   chapter: SchoolChapter
 ): string {
   const byUser = new Map(leaderboard.map((e) => [e.userId, e]));
+  const hasCohort = Boolean(chapter.cohort || chapter.region);
   const headers = [
     "School",
+    ...(hasCohort ? ["Cohort", "Region"] : []),
     "Student Name",
     "Email",
     "Status",
@@ -578,11 +640,15 @@ export function buildChapterExportCsv(
     "Corals Received",
     "Upvotes",
     "Engagement Score",
+    // Scan Count is a placeholder until per-student scan joins are wired —
+    // see buildDetailedScanExportCsv for a roster+scan export.
+    "Scan Count",
   ];
   const rows = roster.map((m) => {
     const stats = m.userId ? byUser.get(m.userId) : undefined;
     return [
       chapter.schoolName,
+      ...(hasCohort ? [chapter.cohort ?? "", chapter.region ?? ""] : []),
       m.displayName,
       m.email ?? "",
       m.status,
@@ -593,15 +659,64 @@ export function buildChapterExportCsv(
       String(stats?.coralsReceived ?? 0),
       String(stats?.upvotesReceived ?? 0),
       String(stats?.score ?? 0),
+      "",
     ];
   });
-  const escape = (v: string) => {
-    if (v.includes(",") || v.includes('"') || v.includes("\n")) {
-      return `"${v.replace(/"/g, '""')}"`;
-    }
-    return v;
-  };
-  return [headers, ...rows].map((r) => r.map(escape).join(",")).join("\n");
+  return [headers, ...rows]
+    .map((r) => r.map(escapeCsvValue).join(","))
+    .join("\n");
+}
+
+export interface DetailedScanExportRow {
+  studentName: string;
+  scanId: string;
+  health: string;
+  label: string;
+  confidence: number;
+  date: string;
+  lat: number | null;
+  lng: number | null;
+  modelVersion: string | null;
+  notes: string | null;
+}
+
+/**
+ * Row-per-scan export for research/partner reporting. Callers should join
+ * `user_scans` (see supabase/migrations/008_sales_sprint.sql) by roster
+ * userId to build these rows; this helper only handles CSV formatting so it
+ * can be reused for roster-only exports (pass an empty array) as well as
+ * fully joined scan exports once that join is wired up server-side.
+ */
+export function buildDetailedScanExportCsv(
+  rows: DetailedScanExportRow[]
+): string {
+  const headers = [
+    "Student Name",
+    "Scan ID",
+    "Health",
+    "Label",
+    "Confidence",
+    "Date",
+    "Latitude",
+    "Longitude",
+    "Model Version",
+    "Notes",
+  ];
+  const body = rows.map((r) => [
+    r.studentName,
+    r.scanId,
+    r.health,
+    r.label,
+    String(r.confidence),
+    r.date,
+    r.lat != null ? String(r.lat) : "",
+    r.lng != null ? String(r.lng) : "",
+    r.modelVersion ?? "",
+    r.notes ?? "",
+  ]);
+  return [headers, ...body]
+    .map((r) => r.map(escapeCsvValue).join(","))
+    .join("\n");
 }
 
 export async function fetchChapterInsights(

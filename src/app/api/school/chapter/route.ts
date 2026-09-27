@@ -3,10 +3,12 @@ import {
   createSchoolChapter,
   fetchChapterByTeacherId,
   updateChapterBranding,
+  updateChapterCohort,
 } from "@/lib/school/db";
 import { isSchoolDemoMode } from "@/lib/school/config";
 import { isChapterSubscriptionActive } from "@/lib/school/types";
 import { isGalleryCloudEnabled, GALLERY_SETUP_MESSAGE } from "@/lib/supabase/config";
+import { isAnnualBillingConfigured } from "@/lib/school/stripe";
 
 export async function GET(request: Request) {
   if (!isGalleryCloudEnabled()) {
@@ -28,7 +30,11 @@ export async function GET(request: Request) {
     ) {
       chapter = { ...chapter, subscriptionStatus: "active" };
     }
-    return NextResponse.json({ chapter, demoMode });
+    return NextResponse.json({
+      chapter,
+      demoMode,
+      annualBillingAvailable: isAnnualBillingConfigured(),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load chapter";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -46,6 +52,8 @@ export async function POST(request: Request) {
       teacherName: string;
       teacherEmail: string;
       schoolName: string;
+      cohort?: string | null;
+      region?: string | null;
     };
 
     if (
@@ -62,6 +70,8 @@ export async function POST(request: Request) {
       teacherName: body.teacherName.trim(),
       teacherEmail: body.teacherEmail.trim(),
       schoolName: body.schoolName.trim(),
+      cohort: body.cohort,
+      region: body.region,
     });
 
     return NextResponse.json({ chapter, demoMode: isSchoolDemoMode() });
@@ -83,13 +93,23 @@ export async function PATCH(request: Request) {
       schoolName?: string;
       brandingTagline?: string | null;
       brandingAccent?: string;
+      cohort?: string | null;
+      region?: string | null;
     };
 
     if (!body.chapterId || !body.teacherUserId) {
       return NextResponse.json({ error: "Missing chapterId or teacherUserId" }, { status: 400 });
     }
 
-    const chapter = await updateChapterBranding(body);
+    let chapter = await updateChapterBranding(body);
+    if (body.cohort !== undefined || body.region !== undefined) {
+      chapter = await updateChapterCohort({
+        chapterId: body.chapterId,
+        teacherUserId: body.teacherUserId,
+        cohort: body.cohort ?? chapter.cohort,
+        region: body.region ?? chapter.region,
+      });
+    }
     return NextResponse.json({ chapter });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to update chapter";

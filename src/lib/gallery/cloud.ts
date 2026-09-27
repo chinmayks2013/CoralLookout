@@ -14,7 +14,8 @@ export interface GalleryFeedResponse {
 }
 
 export async function fetchGalleryFeed(): Promise<GalleryFeedResponse> {
-  const res = await fetch("/api/gallery", { cache: "no-store" });
+  // Rely on API Cache-Control (s-maxage) so the Vercel Edge can serve bursts.
+  const res = await fetch("/api/gallery");
   return res.json() as Promise<GalleryFeedResponse>;
 }
 

@@ -51,12 +51,29 @@ In Supabase Dashboard → **Authentication → Providers**:
 
 ## Step 5 — Database (one time)
 
-Run in **Supabase → SQL Editor**:
+Run in **Supabase → SQL Editor** (in order):
 
 - `supabase/schema.sql`
 - `supabase/migrations/007_user_scans.sql` (saved scans)
+- `supabase/migrations/008_sales_sprint.sql` (cohorts, assignments, provenance, flags, partner leads, co-teachers)
 
 Or locally: `npm run setup:gallery` (needs `SUPABASE_DB_URL` in `.env.local`)
+
+## Optional sales-sprint env vars
+
+| Variable | Notes |
+|----------|-------|
+| `STRIPE_SCHOOL_PRICE_ID` | Monthly School Chapter price |
+| `STRIPE_SCHOOL_ANNUAL_PRICE_ID` | Founding annual prepaid price |
+| `SCHOOL_DEMO_MODE` | Set `false` for real paid teachers when Stripe is configured |
+| `NEXT_PUBLIC_SCHOOL_SUPPORT_EMAIL` | Book-a-pilot / support inbox |
+| `NEXT_PUBLIC_CALENDAR_BOOKING_URL` | Partner inquiry auto-reply calendar link |
+| `PARTNER_API_KEY` | Private partner API preview (`x-api-key`) |
+| `ADMIN_SECRET` | `/admin/metrics` + moderation queue |
+
+## Uptime check
+
+Point your monitor at `GET /api/health` and assert JSON `"ok": true`.
 
 ## Verify locally
 

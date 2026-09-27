@@ -17,20 +17,32 @@ import {
   Sparkles,
   BarChart3,
   LayoutDashboard,
+  Printer,
+  ClipboardList,
+  Plus,
+  MapPin,
+  UserPlus,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { usePlatform } from "@/context/PlatformContext";
 import { useAuth } from "@/context/AuthContext";
 import {
+  createAssignment,
   createTeacherChapter,
+  fetchAssignmentsWithCompletions,
   fetchChapterInsights,
   fetchChapterLeaderboard,
+  fetchCoTeachers,
   fetchRoster,
   fetchTeacherChapter,
   getChapterExportUrl,
+  inviteCoTeacher,
   openBillingPortal,
   startSchoolCheckout,
   updateChapterBranding,
+  type AssignmentCompletionDto,
+  type CoTeacherDto,
+  type SchoolAssignmentDto,
 } from "@/lib/school/cloud";
 import type {
   ChapterInsights,
@@ -40,6 +52,7 @@ import type {
 } from "@/lib/school/types";
 import { isChapterSubscriptionActive } from "@/lib/school/types";
 import { TeacherInsightsPanel } from "@/components/teacher/TeacherInsightsPanel";
+import { OnboardingChecklist } from "@/components/ui/OnboardingChecklist";
 
 const ACCENT_OPTIONS = [
   { id: "cyan", label: "Ocean cyan" },
@@ -51,7 +64,7 @@ const ACCENT_OPTIONS = [
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SCHOOL_SUPPORT_EMAIL ?? "schools@corallookout.org";
 
-type TeacherTab = "overview" | "insights" | "leaderboard";
+type TeacherTab = "overview" | "insights" | "leaderboard" | "assignments";
 
 export function TeacherDashboardView() {
   const searchParams = useSearchParams();
@@ -63,17 +76,38 @@ export function TeacherDashboardView() {
   const [leaderboard, setLeaderboard] = useState<ChapterLeaderboardEntry[]>([]);
   const [insights, setInsights] = useState<ChapterInsights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [tab, setTab] = useState<TeacherTab>("insights");
+  const [tab, setTab] = useState<TeacherTab>("assignments");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
+  const [annualBillingAvailable, setAnnualBillingAvailable] = useState(false);
+
+  const [assignments, setAssignments] = useState<SchoolAssignmentDto[]>([]);
+  const [assignmentCompletions, setAssignmentCompletions] = useState<
+    AssignmentCompletionDto[]
+  >([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [assignmentTitle, setAssignmentTitle] = useState("");
+  const [assignmentDescription, setAssignmentDescription] = useState("");
+  const [assignmentDueAt, setAssignmentDueAt] = useState("");
+  const [assignmentRequiresScan, setAssignmentRequiresScan] = useState(true);
+  const [assignmentRequiresPin, setAssignmentRequiresPin] = useState(true);
+  const [creatingAssignment, setCreatingAssignment] = useState(false);
+  const [expandedAssignmentId, setExpandedAssignmentId] = useState<string | null>(
+    null
+  );
 
   const [schoolName, setSchoolName] = useState("");
   const [tagline, setTagline] = useState("");
   const [accent, setAccent] = useState("cyan");
+
+  const [coTeachers, setCoTeachers] = useState<CoTeacherDto[]>([]);
+  const [coTeacherName, setCoTeacherName] = useState("");
+  const [coTeacherEmail, setCoTeacherEmail] = useState("");
+  const [invitingCoTeacher, setInvitingCoTeacher] = useState(false);
   const subscribed = chapter
     ? isChapterSubscriptionActive(chapter.subscriptionStatus)
     : false;
@@ -82,10 +116,15 @@ export function TeacherDashboardView() {
   const loadChapter = useCallback(async () => {
     if (!state.userId) return;
     setError(null);
-    const { chapter: ch, demoMode: demo, error: err } =
-      await fetchTeacherChapter(state.userId);
+    const {
+      chapter: ch,
+      demoMode: demo,
+      annualBillingAvailable: annual,
+      error: err,
+    } = await fetchTeacherChapter(state.userId);
     if (err) setError(err);
     setDemoMode(Boolean(demo));
+    setAnnualBillingAvailable(Boolean(annual));
     setChapter(ch);
     if (ch) {
       dispatch({
@@ -149,6 +188,104 @@ export function TeacherDashboardView() {
     if (chapter) void loadPremiumData();
   }, [chapter, loadPremiumData]);
 
+  const loadAssignments = useCallback(async () => {
+    if (!chapter || !premiumUnlocked) {
+      setAssignments([]);
+      setAssignmentCompletions([]);
+      return;
+    }
+    setAssignmentsLoading(true);
+    try {
+      const { assignments: list, completions } =
+        await fetchAssignmentsWithCompletions(chapter.id);
+      setAssignments(list);
+      setAssignmentCompletions(completions);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load assignments");
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  }, [chapter, premiumUnlocked]);
+
+  useEffect(() => {
+    if (chapter && premiumUnlocked) void loadAssignments();
+  }, [chapter, premiumUnlocked, loadAssignments]);
+
+  const loadCoTeachers = useCallback(async () => {
+    if (!chapter || !premiumUnlocked) {
+      setCoTeachers([]);
+      return;
+    }
+    try {
+      const list = await fetchCoTeachers(chapter.id);
+      setCoTeachers(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load co-teachers");
+    }
+  }, [chapter, premiumUnlocked]);
+
+  useEffect(() => {
+    if (chapter && premiumUnlocked) void loadCoTeachers();
+  }, [chapter, premiumUnlocked, loadCoTeachers]);
+
+  async function handleInviteCoTeacher(e: FormEvent) {
+    e.preventDefault();
+    if (!chapter || !state.userId || !coTeacherName.trim()) return;
+    setInvitingCoTeacher(true);
+    setError(null);
+    try {
+      await inviteCoTeacher({
+        chapterId: chapter.id,
+        teacherUserId: state.userId,
+        displayName: coTeacherName.trim(),
+        email: coTeacherEmail.trim() || undefined,
+      });
+      setCoTeacherName("");
+      setCoTeacherEmail("");
+      await loadCoTeachers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to invite co-teacher");
+    } finally {
+      setInvitingCoTeacher(false);
+    }
+  }
+
+  async function handleCreateAssignment(e: FormEvent) {
+    e.preventDefault();
+    if (!chapter || !state.userId || !assignmentTitle.trim()) return;
+    setCreatingAssignment(true);
+    setError(null);
+    try {
+      await createAssignment({
+        chapterId: chapter.id,
+        teacherUserId: state.userId,
+        title: assignmentTitle.trim(),
+        description: assignmentDescription.trim() || undefined,
+        requiresScan: assignmentRequiresScan,
+        requiresPin: assignmentRequiresPin,
+        dueAt: assignmentDueAt.trim()
+          ? new Date(assignmentDueAt).toISOString()
+          : null,
+      });
+      setAssignmentTitle("");
+      setAssignmentDescription("");
+      setAssignmentDueAt("");
+      setAssignmentRequiresScan(true);
+      setAssignmentRequiresPin(true);
+      await loadAssignments();
+      setTab("assignments");
+      setMessage("Assignment created. Students will see it under My Work.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create assignment");
+    } finally {
+      setCreatingAssignment(false);
+    }
+  }
+
+  function printSummary() {
+    window.print();
+  }
+
   useEffect(() => {
     const checkout = searchParams.get("checkout");
     if (checkout === "success") {
@@ -183,7 +320,7 @@ export function TeacherDashboardView() {
     }
   }
 
-  async function handleSubscribe() {
+  async function handleSubscribe(billingInterval: "month" | "year" = "month") {
     if (!chapter || !state.profile || !state.userId) return;
     setCheckoutLoading(true);
     setError(null);
@@ -192,6 +329,7 @@ export function TeacherDashboardView() {
         chapterId: chapter.id,
         teacherUserId: state.userId,
         teacherEmail,
+        billingInterval,
       });
       window.location.href = url;
     } catch (err) {
@@ -279,6 +417,34 @@ export function TeacherDashboardView() {
         }
       />
 
+      {chapter?.cohort && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/30 px-3 py-1 text-xs font-semibold text-violet-200">
+            <MapPin className="h-3.5 w-3.5" />
+            {chapter.cohort}
+            {chapter.region ? ` · ${chapter.region}` : ""}
+          </span>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap gap-3 print:hidden">
+        <Link
+          href="/teacher/join-guide"
+          className="inline-flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Print join guide
+        </Link>
+        <button
+          type="button"
+          onClick={printSummary}
+          className="inline-flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Print class summary
+        </button>
+      </div>
+
       {message && (
         <aside className="mb-4 rounded-xl border border-teal-500/30 bg-teal-950/30 px-4 py-3 text-sm text-teal-200">
           {message}
@@ -316,7 +482,7 @@ export function TeacherDashboardView() {
           </form>
         </article>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-6 print-summary">
           <article
             className={`rounded-2xl p-6 border ${
               premiumUnlocked
@@ -349,12 +515,12 @@ export function TeacherDashboardView() {
                 </p>
                 <p className="text-sm text-slate-400 mt-1">
                   {demoMode
-                    ? "All School Chapter features work for demos and competitions. Add Stripe keys in .env.local when you are ready for real $49/month billing."
+                    ? "School Demo Mode — Stripe bypassed. Paid teachers: set SCHOOL_DEMO_MODE=false and configure Stripe."
                     : premiumUnlocked
                       ? chapter.subscriptionCurrentPeriodEnd
                         ? `Renews ${new Date(chapter.subscriptionCurrentPeriodEnd).toLocaleDateString()}`
                         : "Billing active"
-                      : "$49/month — roster, exports & private leaderboard"}
+                      : "$49/month or a discounted annual plan — roster, exports & private leaderboard"}
                 </p>
               </div>
               {!demoMode && (
@@ -370,19 +536,32 @@ export function TeacherDashboardView() {
                       Manage billing
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      disabled={checkoutLoading}
-                      onClick={() => void handleSubscribe()}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-50"
-                    >
-                      {checkoutLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-4 w-4" />
+                    <>
+                      <button
+                        type="button"
+                        disabled={checkoutLoading}
+                        onClick={() => void handleSubscribe("month")}
+                        className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 px-6 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-50"
+                      >
+                        {checkoutLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-4 w-4" />
+                        )}
+                        Monthly — $49/mo
+                      </button>
+                      {annualBillingAvailable && (
+                        <button
+                          type="button"
+                          disabled={checkoutLoading}
+                          onClick={() => void handleSubscribe("year")}
+                          className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 px-6 py-2.5 text-sm font-semibold text-teal-300 hover:bg-teal-500/10 disabled:opacity-50"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          Annual — save more
+                        </button>
                       )}
-                      Subscribe — $49/month
-                    </button>
+                    </>
                   )}
                 </div>
               )}
@@ -393,6 +572,7 @@ export function TeacherDashboardView() {
             <div className="flex flex-wrap gap-2 border-b border-cyan-500/15 pb-1">
               {(
                 [
+                  { id: "assignments" as const, label: "Assignments", icon: ClipboardList },
                   { id: "insights" as const, label: "Insights", icon: BarChart3 },
                   { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
                   { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
@@ -554,10 +734,13 @@ export function TeacherDashboardView() {
             </p>
 
             {roster.filter((m) => m.status === "active").length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No students yet. Share your join code and have them open Join class after
-                signing in.
-              </p>
+              <div className="space-y-4">
+                <p className="text-sm text-slate-500">
+                  No students yet. Share your join code and have them open Join class after
+                  signing in.
+                </p>
+                <OnboardingChecklist role="teacher" cohortId={chapter.cohort} />
+              </div>
             ) : (
               <ul className="divide-y divide-cyan-500/10 text-sm">
                 {roster
@@ -575,6 +758,239 @@ export function TeacherDashboardView() {
           </article>
 
           </>
+          )}
+
+          {premiumUnlocked && tab === "assignments" && (
+          <article id="assignments" className="glass rounded-xl p-6 border border-cyan-500/15 scroll-mt-24">
+            <h3 className="font-semibold mb-1 flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-cyan-400" />
+              Class work
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Create reef tasks students finish on the scanner. Track who turned
+              work in without exporting a CSV.
+            </p>
+
+            <form
+              onSubmit={(e) => void handleCreateAssignment(e)}
+              className="grid gap-3 sm:grid-cols-2 mb-6 rounded-lg border border-cyan-500/15 bg-slate-900/30 p-4"
+            >
+              <input
+                type="text"
+                value={assignmentTitle}
+                onChange={(e) => setAssignmentTitle(e.target.value)}
+                placeholder="Assignment title (e.g. Scan a reef image + pin location)"
+                className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm sm:col-span-2"
+                required
+              />
+              <textarea
+                value={assignmentDescription}
+                onChange={(e) => setAssignmentDescription(e.target.value)}
+                placeholder="Description (optional)"
+                rows={2}
+                className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm sm:col-span-2 resize-none"
+              />
+              <label className="block text-xs text-slate-400 sm:col-span-2">
+                Due date (optional)
+                <input
+                  type="datetime-local"
+                  value={assignmentDueAt}
+                  onChange={(e) => setAssignmentDueAt(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm text-slate-200"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={assignmentRequiresScan}
+                  onChange={(e) => setAssignmentRequiresScan(e.target.checked)}
+                  className="accent-cyan-500"
+                />
+                Requires a scan
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={assignmentRequiresPin}
+                  onChange={(e) => setAssignmentRequiresPin(e.target.checked)}
+                  className="accent-cyan-500"
+                />
+                Requires a pinned location
+              </label>
+              <button
+                type="submit"
+                disabled={creatingAssignment || !assignmentTitle.trim()}
+                className="sm:col-span-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {creatingAssignment ? "Creating…" : "Create assignment"}
+              </button>
+            </form>
+
+            {assignmentsLoading && assignments.length === 0 ? (
+              <p className="text-sm text-slate-500">Loading assignments…</p>
+            ) : assignments.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No assignments yet — create your first one above.
+              </p>
+            ) : (
+              <ul className="space-y-3 text-sm">
+                {assignments.map((a) => {
+                  const turnedIn = assignmentCompletions.filter(
+                    (c) => c.assignmentId === a.id
+                  );
+                  const rosterSize = roster.filter((m) => m.status === "active").length;
+                  const overdue =
+                    a.dueAt && new Date(a.dueAt).getTime() < Date.now();
+                  const expanded = expandedAssignmentId === a.id;
+                  const nameByUserId = new Map(
+                    roster
+                      .filter((m) => m.userId)
+                      .map((m) => [m.userId as string, m.displayName])
+                  );
+                  return (
+                    <li
+                      key={a.id}
+                      className={`rounded-xl border px-4 py-3 ${
+                        overdue && turnedIn.length < rosterSize
+                          ? "border-amber-500/30 bg-amber-950/10"
+                          : "border-cyan-500/15 bg-slate-900/30"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-slate-100">{a.title}</p>
+                          {a.description && (
+                            <p className="text-slate-400 text-xs mt-0.5">
+                              {a.description}
+                            </p>
+                          )}
+                          <p className="text-slate-500 text-xs mt-1">
+                            {a.requiresScan ? "Scan a reef photo" : "Scan optional"}
+                            {" · "}
+                            {a.requiresPin ? "Pin on the map" : "Pin optional"}
+                            {a.dueAt && (
+                              <>
+                                {" · "}
+                                {overdue ? "Overdue" : "Due"}{" "}
+                                {new Date(a.dueAt).toLocaleString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedAssignmentId(expanded ? null : a.id)
+                          }
+                          className="shrink-0 rounded-full border border-cyan-500/30 px-3 py-1 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10"
+                        >
+                          {turnedIn.length}/{rosterSize || "—"} turned in
+                        </button>
+                      </div>
+                      {expanded && (
+                        <div className="mt-3 border-t border-cyan-500/10 pt-3">
+                          {turnedIn.length === 0 ? (
+                            <p className="text-xs text-slate-500">
+                              No submissions yet. Students start from My Class → Start.
+                            </p>
+                          ) : (
+                            <ul className="space-y-1.5">
+                              {turnedIn.map((c) => (
+                                <li
+                                  key={c.id}
+                                  className="flex items-center justify-between gap-2 text-xs text-slate-300"
+                                >
+                                  <span>
+                                    {nameByUserId.get(c.userId) ?? "Student"}
+                                  </span>
+                                  <span className="text-slate-500">
+                                    {new Date(c.completedAt).toLocaleString(
+                                      undefined,
+                                      {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      }
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </article>
+          )}
+
+          {premiumUnlocked && tab === "overview" && (
+          <article className="glass rounded-xl p-6 border border-cyan-500/15">
+            <h3 className="font-semibold mb-1 flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-violet-400" />
+              Co-teachers / TAs
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Invite other teachers or TAs to help run this chapter. This is a
+              lightweight roster — they&apos;ll get full access once signed in
+              with a matching email in a future update.
+            </p>
+
+            <form
+              onSubmit={(e) => void handleInviteCoTeacher(e)}
+              className="grid gap-3 sm:grid-cols-2 mb-5 rounded-lg border border-cyan-500/15 bg-slate-900/30 p-4"
+            >
+              <input
+                type="text"
+                value={coTeacherName}
+                onChange={(e) => setCoTeacherName(e.target.value)}
+                placeholder="Name"
+                className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
+                required
+              />
+              <input
+                type="email"
+                value={coTeacherEmail}
+                onChange={(e) => setCoTeacherEmail(e.target.value)}
+                placeholder="Email (optional)"
+                className="rounded-lg bg-slate-800/50 border border-cyan-500/20 px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={invitingCoTeacher || !coTeacherName.trim()}
+                className="sm:col-span-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-500 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {invitingCoTeacher ? "Inviting…" : "Invite co-teacher"}
+              </button>
+            </form>
+
+            {coTeachers.length === 0 ? (
+              <p className="text-sm text-slate-500">No co-teachers added yet.</p>
+            ) : (
+              <ul className="divide-y divide-cyan-500/10 text-sm">
+                {coTeachers.map((t) => (
+                  <li key={t.id} className="flex items-center gap-2 py-2.5">
+                    <span className="font-medium">{t.displayName}</span>
+                    {t.email && <span className="text-slate-500 truncate">{t.email}</span>}
+                    <span className="ml-auto text-xs uppercase tracking-wide text-slate-500">
+                      {t.role === "co_teacher" ? "Co-teacher" : t.role}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
           )}
 
           {premiumUnlocked && tab === "leaderboard" && (

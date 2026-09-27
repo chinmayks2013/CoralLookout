@@ -7,13 +7,14 @@ import { getHealthColor } from "@/lib/scanner/analyze";
 import { useGallery } from "@/context/GalleryContext";
 import { usePlatform } from "@/context/PlatformContext";
 import { safeNumber } from "@/lib/platform/numbers";
-import { Gem, ArrowLeft, Eye, ShieldCheck } from "lucide-react";
+import { Gem, ArrowLeft, Eye, ShieldCheck, Flag, CheckCircle } from "lucide-react";
 import { DonateButton } from "@/components/gallery/DonateButton";
 import { GalleryAuthorLine } from "@/components/gallery/GalleryTitleBadge";
 import { GalleryCommentInput } from "@/components/gallery/GalleryCommentInput";
 import { GalleryCommentsList } from "@/components/gallery/GalleryCommentsList";
 import { getTopPercentTiers } from "@/lib/gallery/leaderboard";
 import { isDiscussionPost } from "@/lib/gallery/post-helpers";
+import { OptimizedCoralImage } from "@/components/ui/OptimizedCoralImage";
 
 export function GalleryPostDetail({
   postId,
@@ -40,6 +41,40 @@ export function GalleryPostDetail({
   const { state } = usePlatform();
   const [commentText, setCommentText] = useState("");
   const corals = safeNumber(state.corals);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  async function submitReport() {
+    if (!post || !reportReason.trim()) {
+      setReportError("Please describe the issue.");
+      return;
+    }
+    setReportSubmitting(true);
+    setReportError(null);
+    try {
+      const res = await fetch("/api/gallery/flags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postId: post.id,
+          reason: reportReason.trim(),
+          reporterUserId: state.userId || undefined,
+          reporterName: state.profile?.name || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to report post");
+      setReportDone(true);
+      setShowReport(false);
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : "Failed to report post");
+    } finally {
+      setReportSubmitting(false);
+    }
+  }
 
   const post = posts.find((p) => p.id === postId) ?? null;
 
@@ -98,12 +133,15 @@ export function GalleryPostDetail({
 
       <article className="glass rounded-2xl overflow-hidden">
         {post.imageDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.imageDataUrl}
-            alt={post.locationName}
-            className="w-full max-h-[420px] object-cover"
-          />
+          <div className="relative w-full aspect-[16/10] max-h-[420px]">
+            <OptimizedCoralImage
+              src={post.imageDataUrl}
+              alt={post.locationName}
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 768px"
+              priority
+            />
+          </div>
         ) : null}
 
         <div className="p-6 space-y-6">
@@ -197,6 +235,59 @@ export function GalleryPostDetail({
               Author confirmed they have the rights to share this image.
             </p>
           )}
+
+          <div className="border-t border-cyan-500/10 pt-4">
+            {reportDone ? (
+              <p className="flex items-center gap-2 text-xs text-teal-300">
+                <CheckCircle className="h-3.5 w-3.5" />
+                Thanks — this post has been reported to moderators.
+              </p>
+            ) : showReport ? (
+              <div className="space-y-2 max-w-sm">
+                <label className="block text-xs text-slate-400">
+                  Why are you reporting this post?
+                  <input
+                    type="text"
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    placeholder="e.g. Not a reef image, offensive content, spam"
+                    maxLength={300}
+                    className="mt-1.5 w-full rounded-lg bg-slate-800/50 border border-red-500/30 px-3 py-2 text-sm"
+                  />
+                </label>
+                {reportError && <p className="text-xs text-red-400">{reportError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void submitReport()}
+                    disabled={reportSubmitting}
+                    className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                  >
+                    {reportSubmitting ? "Submitting…" : "Submit report"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReport(false);
+                      setReportError(null);
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowReport(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-300"
+              >
+                <Flag className="h-3.5 w-3.5" />
+                Report post
+              </button>
+            )}
+          </div>
 
           <section className="border-t border-cyan-500/10 pt-4">
             <h3 className="font-semibold mb-3">Comments ({post.comments.length})</h3>
