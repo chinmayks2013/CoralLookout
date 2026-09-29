@@ -16,6 +16,7 @@ import {
   NOAA_WMS,
 } from "@/lib/data/world-research";
 import { getHealthColor, getHealthLabel } from "@/lib/scanner/analyze";
+import { BASEMAP } from "@/lib/map/basemap";
 
 interface ReefMapInnerProps {
   userMarkers: ReefMarker[];
@@ -44,8 +45,9 @@ export function ReefMapInner({
       scrollWheelZoom
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution={BASEMAP.attribution}
+        url={BASEMAP.url}
+        maxZoom={BASEMAP.maxZoom}
       />
 
       {showNoaaLayer && (

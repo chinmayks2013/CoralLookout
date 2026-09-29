@@ -9,6 +9,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { BASEMAP } from "@/lib/map/basemap";
 
 interface LocationPinPickerInnerProps {
   lat: number | null;
@@ -53,8 +54,9 @@ export function LocationPinPickerInner({
       worldCopyJump
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        attribution={BASEMAP.attribution}
+        url={BASEMAP.url}
+        maxZoom={BASEMAP.maxZoom}
       />
       <MapClickHandler onPick={onPick} />
       <FlyToPin lat={lat} lng={lng} />
