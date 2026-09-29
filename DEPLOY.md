@@ -54,10 +54,16 @@ In Supabase Dashboard → **Authentication → Providers**:
 Run in **Supabase → SQL Editor** (in order):
 
 - `supabase/schema.sql`
-- `supabase/migrations/007_user_scans.sql` (saved scans)
-- `supabase/migrations/008_sales_sprint.sql` (cohorts, assignments, provenance, flags, partner leads, co-teachers)
+- `supabase/migrations/002_gallery_views_profiles.sql`
+- `supabase/migrations/003_reload_schema_only.sql`
+- `supabase/migrations/004_gallery_discussions.sql`
+- `supabase/migrations/005_school_chapters.sql`
+- `supabase/migrations/006_academy_progress.sql`
+- `supabase/migrations/007_user_scans.sql`
+- `supabase/migrations/008_sales_sprint.sql`
+- `supabase/migrations/009_school_fieldwork_chemistry.sql` (teacher fieldwork logistics and water chemistry)
 
-Or locally: `npm run setup:gallery` (needs `SUPABASE_DB_URL` in `.env.local`)
+`npm run setup:gallery` applies `schema.sql` only. Run the migrations above afterward; the setup script needs `SUPABASE_DB_URL` in `.env.local`.
 
 ## Optional sales-sprint env vars
 

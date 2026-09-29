@@ -35,6 +35,33 @@ export interface SchoolRosterMember {
   createdAt: string;
 }
 
+export interface SchoolFieldworkInput {
+  title: string;
+  location: string;
+  visitAt: string;
+  transportation: string;
+  groupSize: number;
+  equipment: string[];
+  safetyNotes: string;
+  sampleLabel: string;
+  sampledAt: string | null;
+  waterTempC: number | null;
+  pH: number | null;
+  salinityPpt: number | null;
+  dissolvedOxygenMgL: number | null;
+  nitrateMgL: number | null;
+  phosphateMgL: number | null;
+  alkalinityMgLCaCO3: number | null;
+}
+
+export interface SchoolFieldwork extends SchoolFieldworkInput {
+  id: string;
+  chapterId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChapterLeaderboardEntry {
   userId: string;
   displayName: string;

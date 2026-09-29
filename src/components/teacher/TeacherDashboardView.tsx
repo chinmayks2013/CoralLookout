@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   Printer,
   ClipboardList,
+  FlaskConical,
   Plus,
   MapPin,
   UserPlus,
@@ -52,6 +53,7 @@ import type {
 } from "@/lib/school/types";
 import { isChapterSubscriptionActive } from "@/lib/school/types";
 import { TeacherInsightsPanel } from "@/components/teacher/TeacherInsightsPanel";
+import { TeacherFieldworkPanel } from "@/components/teacher/TeacherFieldworkPanel";
 import { OnboardingChecklist } from "@/components/ui/OnboardingChecklist";
 
 const ACCENT_OPTIONS = [
@@ -64,7 +66,7 @@ const ACCENT_OPTIONS = [
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SCHOOL_SUPPORT_EMAIL ?? "schools@corallookout.org";
 
-type TeacherTab = "overview" | "insights" | "leaderboard" | "assignments";
+type TeacherTab = "overview" | "insights" | "leaderboard" | "assignments" | "fieldwork";
 
 export function TeacherDashboardView() {
   const searchParams = useSearchParams();
@@ -76,7 +78,7 @@ export function TeacherDashboardView() {
   const [leaderboard, setLeaderboard] = useState<ChapterLeaderboardEntry[]>([]);
   const [insights, setInsights] = useState<ChapterInsights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [tab, setTab] = useState<TeacherTab>("assignments");
+  const [tab, setTab] = useState<TeacherTab>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -180,7 +182,12 @@ export function TeacherDashboardView() {
   }, [chapter, state.userId, premiumUnlocked]);
 
   useEffect(() => {
-    if (!hydrated || !state.userId) return;
+    if (!hydrated) return;
+    if (!state.userId) {
+      setChapter(null);
+      setLoading(false);
+      return;
+    }
     void loadChapter().finally(() => setLoading(false));
   }, [hydrated, state.userId, loadChapter]);
 
@@ -575,6 +582,7 @@ export function TeacherDashboardView() {
                   { id: "assignments" as const, label: "Assignments", icon: ClipboardList },
                   { id: "insights" as const, label: "Insights", icon: BarChart3 },
                   { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
+                  { id: "fieldwork" as const, label: "Fieldwork", icon: FlaskConical },
                   { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
                 ] as const
               ).map(({ id, label, icon: Icon }) => (
@@ -617,6 +625,10 @@ export function TeacherDashboardView() {
               </p>
               <TeacherInsightsPanel insights={insights} loading={insightsLoading && !insights} />
             </article>
+          )}
+
+          {premiumUnlocked && tab === "fieldwork" && (
+            <TeacherFieldworkPanel chapterId={chapter.id} teacherUserId={state.userId} />
           )}
 
           {(tab === "overview" || !premiumUnlocked) && (
